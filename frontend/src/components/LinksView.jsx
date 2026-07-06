@@ -30,7 +30,7 @@ const FALLBACK_CLUSTER_COLORS = ['var(--gold-bright)', 'var(--teal-bright)', 'va
 
 const VIEW_W = 800;
 const VIEW_H = 760;
-const ZOOM_MIN = 0.5;
+const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.15;
 
@@ -412,7 +412,41 @@ export default function LinksView({ characters, relationTypes, affectations, sho
     const svg = svgRef.current;
     if (!svg) return;
     try {
+      // Zone dédiée à l'export : contrairement à la viewBox utilisée pour l'affichage
+      // (volontairement stable pour ne pas perturber le zoom pendant un glisser), celle-ci
+      // prend aussi en compte les cercles de groupe (affectations) tels qu'ils sont
+      // actuellement affichés, pour ne jamais rien couper à l'export.
+      let ex0 = 0;
+      let ey0 = 0;
+      let ex1 = VIEW_W;
+      let ey1 = VIEW_H;
+      layout.nodes.forEach((n) => {
+        const p = pos(n.nodeKey);
+        ex0 = Math.min(ex0, p.x - 40);
+        ey0 = Math.min(ey0, p.y - 40);
+        ex1 = Math.max(ex1, p.x + 40);
+        ey1 = Math.max(ey1, p.y + 40);
+      });
+      liveClusters.forEach((g) => {
+        ex0 = Math.min(ex0, g.cx - g.radius);
+        ey0 = Math.min(ey0, g.cy - g.radius - 30);
+        ex1 = Math.max(ex1, g.cx + g.radius);
+        ey1 = Math.max(ey1, g.cy + g.radius);
+      });
+      const EPAD = 30;
+      const exportBox = { x: ex0 - EPAD, y: ey0 - EPAD, w: ex1 - ex0 + EPAD * 2, h: ey1 - ey0 + EPAD * 2 };
+
+      const EXPORT_SCALE = 2;
+      const exportWidth = exportBox.w * EXPORT_SCALE;
+      const exportHeight = exportBox.h * EXPORT_SCALE;
+
       const clone = svg.cloneNode(true);
+      // On ignore le zoom/déplacement actuel à l'écran : l'export doit toujours cadrer
+      // l'ensemble des cercles et groupes, pas seulement ce qui est visible en ce moment.
+      clone.setAttribute('viewBox', `${exportBox.x} ${exportBox.y} ${exportBox.w} ${exportBox.h}`);
+      clone.setAttribute('width', exportWidth);
+      clone.setAttribute('height', exportHeight);
+
       const computed = getComputedStyle(document.documentElement);
       const decls = CSS_VARS_FOR_EXPORT.map((v) => `${v}: ${computed.getPropertyValue(v).trim() || 'inherit'};`).join(' ');
       const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
@@ -426,27 +460,31 @@ export default function LinksView({ characters, relationTypes, affectations, sho
 
       const img = new Image();
       img.onload = () => {
-        const scaleFactor = 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = svg.width.baseVal.value * scaleFactor;
-        canvas.height = svg.height.baseVal.value * scaleFactor;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#15130f';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            showToast('Export impossible sur ce navigateur.');
-            return;
-          }
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = 'registre-liens.png';
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-        }, 'image/png');
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = exportWidth;
+          canvas.height = exportHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#15130f';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              showToast('Export impossible sur ce navigateur.');
+              return;
+            }
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'registre-liens.png';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          }, 'image/png');
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          showToast('Export impossible : ' + err.message);
+        }
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -571,19 +609,24 @@ export default function LinksView({ characters, relationTypes, affectations, sho
                 <g key={n.nodeKey} className="link-node" transform={`translate(${n.x}, ${n.y})`} onPointerDown={(e) => handlePointerDown(e, n.nodeKey)}>
                   <circle r="34" fill="var(--surface)" stroke={n.role === 'Principal' ? 'var(--gold)' : 'var(--teal)'} strokeWidth="1.6" />
                   {n.avatar ? (
-                    <foreignObject x="-32" y="-32" width="64" height="64" style={{ pointerEvents: 'none' }}>
-                      <img
-                        src={n.avatar}
-                        alt=""
-                        style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }}
+                    <>
+                      <clipPath id={`avatar-clip-${n.id}`}>
+                        <circle r="32" />
+                      </clipPath>
+                      <image
+                        href={n.avatar}
+                        x="-32"
+                        y="-32"
+                        width="64"
+                        height="64"
+                        clipPath={`url(#avatar-clip-${n.id})`}
+                        preserveAspectRatio="xMidYMid slice"
                       />
-                    </foreignObject>
+                    </>
                   ) : (
-                    <foreignObject x="-16" y="-16" width="32" height="32" style={{ pointerEvents: 'none' }}>
-                      <div style={{ width: 32, height: 32, color: n.role === 'Principal' ? 'var(--gold)' : 'var(--teal-bright)' }}>
-                        <ClassIcon classe={n.classe} />
-                      </div>
-                    </foreignObject>
+                    <g transform="translate(-16, -16)" style={{ color: n.role === 'Principal' ? 'var(--gold)' : 'var(--teal-bright)' }}>
+                      <ClassIcon classe={n.classe} width={32} height={32} />
+                    </g>
                   )}
                   <text y="50" textAnchor="middle" className="link-node-name">
                     {n.name}

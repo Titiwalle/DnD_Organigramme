@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import time
+import tempfile
 from functools import wraps
 
 from flask import Flask, jsonify, request, abort, session
@@ -71,6 +72,22 @@ def serve_frontend():
     return app.send_static_file("index.html")
 
 
+def write_json_atomic(path, data):
+    """Écrit un fichier JSON de façon atomique (fichier temporaire + remplacement),
+    pour qu'une écriture ne puisse jamais laisser un fichier à moitié écrit/corrompu,
+    même si deux sauvegardes se produisent presque en même temps."""
+    dir_name = os.path.dirname(path)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
+
 def ensure_storage():
     os.makedirs(DATA_DIR, exist_ok=True)
     if not os.path.exists(DATA_FILE):
@@ -109,8 +126,7 @@ def load_data():
 
 
 def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    write_json_atomic(DATA_FILE, data)
 
 
 def load_statuts():
@@ -120,8 +136,7 @@ def load_statuts():
 
 
 def save_statuts(statuts):
-    with open(STATUTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(statuts, f, ensure_ascii=False, indent=2)
+    write_json_atomic(STATUTS_FILE, statuts)
 
 
 def remember_statut(value):
@@ -144,8 +159,7 @@ def load_affectations():
 
 
 def save_affectations(affectations):
-    with open(AFFECTATIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(affectations, f, ensure_ascii=False, indent=2)
+    write_json_atomic(AFFECTATIONS_FILE, affectations)
 
 
 def find_affectation(affectations, name):
@@ -159,19 +173,22 @@ def load_relation_types():
 
 
 def save_relation_types(types):
-    with open(RELATION_TYPES_FILE, "w", encoding="utf-8") as f:
-        json.dump(_autre_last(types), f, ensure_ascii=False, indent=2)
+    write_json_atomic(RELATION_TYPES_FILE, _autre_last(types))
 
 
 def load_canvas_layouts():
     ensure_storage()
-    with open(CANVAS_LAYOUTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(CANVAS_LAYOUTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        # Fichier corrompu (ex: deux écritures concurrentes avant le passage à
+        # l'écriture atomique) : on repart d'une base vide plutôt que de planter.
+        return {}
 
 
 def save_canvas_layouts(layouts):
-    with open(CANVAS_LAYOUTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(layouts, f, ensure_ascii=False, indent=2)
+    write_json_atomic(CANVAS_LAYOUTS_FILE, layouts)
 
 
 def _autre_last(types):
@@ -188,8 +205,7 @@ def load_users():
 
 
 def save_users(users):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
+    write_json_atomic(USERS_FILE, users)
 
 
 def find_user(users, username):
@@ -203,8 +219,7 @@ def load_relations():
 
 
 def save_relations(relations):
-    with open(RELATIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(relations, f, ensure_ascii=False, indent=2)
+    write_json_atomic(RELATIONS_FILE, relations)
 
 
 def public_user(u):

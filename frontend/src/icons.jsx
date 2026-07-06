@@ -15,14 +15,16 @@ export const CLASSES = [
   'Autre'
 ];
 
-export function ClassIcon({ classe }) {
+export function ClassIcon({ classe, width, height }) {
   const common = {
     viewBox: '0 0 32 32',
     fill: 'none',
     stroke: 'currentColor',
     strokeWidth: '1.6',
     strokeLinecap: 'round',
-    strokeLinejoin: 'round'
+    strokeLinejoin: 'round',
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {})
   };
 
   switch (classe) {
