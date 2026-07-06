@@ -326,7 +326,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
   return (
     <div>
       <p className="modal-sub" style={{ margin: '0 0 10px' }}>
-        Glisse les cercles pour dégager la vue — ça ne change rien aux données, juste l'affichage.
+        Lien de l'aventure
       </p>
       <div className="links-canvas-wrap" ref={wrapRef}>
         <div className="zoom-controls">

@@ -166,7 +166,6 @@ export default function App() {
         <div>
           <p className="brand-eyebrow">Registre commun</p>
           <h1 className="brand-title">Le Registre des Compagnons</h1>
-          <p className="brand-sub">Chaque nom, une histoire commune.</p>
         </div>
         <div className="whoami">
           Connectée en tant que <b>{user.username}</b>
