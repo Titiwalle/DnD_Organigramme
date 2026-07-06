@@ -16,6 +16,7 @@ USERS_FILE = os.path.join(DATA_DIR, "users.json")
 RELATIONS_FILE = os.path.join(DATA_DIR, "relations.json")
 AFFECTATIONS_FILE = os.path.join(DATA_DIR, "affectations.json")
 RELATION_TYPES_FILE = os.path.join(DATA_DIR, "relation_types.json")
+CANVAS_LAYOUTS_FILE = os.path.join(DATA_DIR, "canvas_layouts.json")
 
 DEFAULT_STATUTS = [
     "Professeur",
@@ -74,7 +75,7 @@ def ensure_storage():
     if not os.path.exists(USERS_FILE):
         admin = {
             "username": "Admin",
-            "passwordHash": generate_password_hash("MDPparDEFAULT"),
+            "passwordHash": generate_password_hash("UneChouette"),
             "role": "admin",
             "createdAt": now_ms(),
         }
@@ -89,6 +90,9 @@ def ensure_storage():
     if not os.path.exists(RELATION_TYPES_FILE):
         with open(RELATION_TYPES_FILE, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_RELATION_TYPES, f, ensure_ascii=False, indent=2)
+    if not os.path.exists(CANVAS_LAYOUTS_FILE):
+        with open(CANVAS_LAYOUTS_FILE, "w", encoding="utf-8") as f:
+            json.dump({}, f)
 
 
 def load_data():
@@ -155,6 +159,17 @@ def load_relation_types():
 def save_relation_types(types):
     with open(RELATION_TYPES_FILE, "w", encoding="utf-8") as f:
         json.dump(_autre_last(types), f, ensure_ascii=False, indent=2)
+
+
+def load_canvas_layouts():
+    ensure_storage()
+    with open(CANVAS_LAYOUTS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_canvas_layouts(layouts):
+    with open(CANVAS_LAYOUTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(layouts, f, ensure_ascii=False, indent=2)
 
 
 def _autre_last(types):
@@ -438,6 +453,35 @@ def delete_relation_type(value):
     types = [t for t in types if t.lower() != value.lower()]
     save_relation_types(types)
     return jsonify(load_relation_types())
+
+
+@app.get("/api/canvas-layout")
+@login_required
+def get_canvas_layout():
+    layouts = load_canvas_layouts()
+    return jsonify(layouts.get(session["username"], {}))
+
+
+@app.put("/api/canvas-layout")
+@login_required
+def save_canvas_layout():
+    body = request.get_json(force=True) or {}
+    overrides = body.get("overrides")
+    if not isinstance(overrides, dict):
+        return jsonify({"error": "Format invalide."}), 400
+    layouts = load_canvas_layouts()
+    layouts[session["username"]] = overrides
+    save_canvas_layouts(layouts)
+    return jsonify(overrides)
+
+
+@app.delete("/api/canvas-layout")
+@login_required
+def reset_canvas_layout():
+    layouts = load_canvas_layouts()
+    layouts.pop(session["username"], None)
+    save_canvas_layouts(layouts)
+    return "", 204
 
 
 @app.get("/api/characters")

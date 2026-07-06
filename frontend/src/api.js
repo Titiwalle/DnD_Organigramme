@@ -48,6 +48,10 @@ export const api = {
   createRelationType: (value) => request('/relation-types', { method: 'POST', body: JSON.stringify({ value }) }),
   deleteRelationType: (value) => request(`/relation-types/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
+  getCanvasLayout: () => request('/canvas-layout'),
+  saveCanvasLayout: (overrides) => request('/canvas-layout', { method: 'PUT', body: JSON.stringify({ overrides }) }),
+  resetCanvasLayout: () => request('/canvas-layout', { method: 'DELETE' }),
+
   createCharacter: (data) =>
     request('/characters', { method: 'POST', body: JSON.stringify(data) }),
   updateCharacter: (id, data) =>

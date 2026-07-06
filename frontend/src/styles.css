@@ -177,9 +177,9 @@ input, select, textarea { font-family: var(--font-body); }
 .tab.active { color: var(--gold-bright); border-bottom-color: var(--gold); }
 
 .links-canvas-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 22px; position: relative; }
-.links-canvas-scroll { overflow: auto; max-height: 640px; scrollbar-width: none; -ms-overflow-style: none; }
+.links-canvas-scroll { overflow: auto; max-height: 640px; scrollbar-width: none; -ms-overflow-style: none; display: flex; justify-content: center; align-items: flex-start; }
 .links-canvas-scroll::-webkit-scrollbar { display: none; }
-.links-canvas { display: block; user-select: none; }
+.links-canvas { display: block; user-select: none; flex-shrink: 0; overflow: visible; }
 .zoom-controls { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; gap: 6px; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 5px 8px; }
 .zoom-controls button { background: none; border: 1px solid var(--border); color: var(--text); width: 24px; height: 24px; border-radius: var(--radius); font-size: 14px; line-height: 1; padding: 0; }
 .zoom-controls button:hover { border-color: var(--gold); color: var(--gold-bright); }
@@ -191,6 +191,10 @@ input, select, textarea { font-family: var(--font-body); }
 .link-node:active { cursor: grabbing; }
 .link-cluster { cursor: grab; touch-action: none; }
 .link-cluster:active { cursor: grabbing; }
+.links-canvas-background { cursor: grab; touch-action: none; }
+.links-canvas.is-panning, .links-canvas.is-panning .links-canvas-background { cursor: grabbing; }
+
+.links-toolbar-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 .link-label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
 .link-node-name { font-family: var(--font-display); font-size: 10px; fill: var(--text); }
 .cluster-label { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
@@ -237,46 +241,8 @@ input, select, textarea { font-family: var(--font-body); }
 .avatar-preview svg { width: 34px; height: 34px; }
 .avatar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.mascot { 
-  position: fixed; 
-  bottom: 0px; 
-  right: 16px; 
-  width: 300px; 
-  height: auto; 
-  z-index: 60; 
-  pointer-events: auto; 
-  cursor: pointer; 
-  transition: transform .15s; 
-  transform-origin: bottom center;
-}
-
-.mascot:hover { 
-  transform: scale(1.05); 
-}
-
-@keyframes mascot-talk-scale {
-  from { transform: scale(0.98) translateY(-.5px) scaleY(0.95); }
-  to { transform: scale(1) translateY(.5px) scaleY(1.05); }
-}
-
-.mascot-talking {
-  animation: mascot-talk-scale 0.15s ease-in-out infinite alternate;
-}
-
-@keyframes mascot-click-shake {
-  0% { transform: scale(1) translateX(0); }
-  15% { transform: scale(0.85) translateX(-6px); }
-  30% { transform: scale(0.85) translateX(6px); }
-  45% { transform: scale(0.85) translateX(-6px); }
-  60% { transform: scale(0.85) translateX(6px); }
-  75% { transform: scale(0.85) translateX(-6px); }
-  100% { transform: scale(1) translateX(0); }
-}
-
-.mascot-clicked {
-  animation: mascot-click-shake 0.6s ease-in-out;
-}
-
+.mascot { position: fixed; bottom: 16px; right: 16px; width: 150px; height: auto; z-index: 60; pointer-events: auto; cursor: pointer; filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); transition: transform .15s; transform-origin: bottom center; }
+.mascot:hover { transform: scale(2) translateY(-5px); }
 @media (max-width: 560px) { .mascot { width: 96px; bottom: 10px; right: 10px; } }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

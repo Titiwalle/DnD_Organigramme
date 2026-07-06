@@ -40,6 +40,7 @@ const ZOOM_STEP = 0.15;
 export default function LinksView({ characters, relationTypes, showToast }) {
   const svgRef = useRef(null);
   const wrapRef = useRef(null);
+  const overridesRef = useRef({});
   const [containerWidth, setContainerWidth] = useState(800);
   const [relations, setRelations] = useState([]);
   const [fromValue, setFromValue] = useState('');
@@ -51,6 +52,8 @@ export default function LinksView({ characters, relationTypes, showToast }) {
   const [dragging, setDragging] = useState(null);
   const [clusterDragging, setClusterDragging] = useState(null);
   const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [panning, setPanning] = useState(null);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -66,7 +69,12 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
   useEffect(() => {
     refresh();
+    api.getCanvasLayout().then(setOverrides).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    overridesRef.current = overrides;
+  }, [overrides]);
 
   useEffect(() => {
     if (!type && relationTypes.length > 0) setType(relationTypes[0]);
@@ -74,6 +82,21 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
   function refresh() {
     api.getRelations().then(setRelations).catch((e) => showToast(e.message));
+  }
+
+  function persistLayout() {
+    api.saveCanvasLayout(overridesRef.current).catch((e) => showToast(e.message));
+  }
+
+  async function handleResetLayout() {
+    try {
+      await api.resetCanvasLayout();
+      setOverrides({});
+      setZoom(1);
+      setPanOffset({ x: 0, y: 0 });
+    } catch (err) {
+      showToast(err.message);
+    }
   }
 
   const groups = (() => {
@@ -140,26 +163,21 @@ export default function LinksView({ characters, relationTypes, showToast }) {
   const clusterByKey = Object.fromEntries(liveClusters.map((g) => [g.key, g]));
 
   const viewBox = (() => {
-    const nodePoints = layout.nodes.map((n) => pos(n.nodeKey));
     let minX = 0;
     let minY = 0;
     let maxX = VIEW_W;
     let maxY = VIEW_H;
-    nodePoints.forEach((p) => {
-      minX = Math.min(minX, p.x - 40);
-      minY = Math.min(minY, p.y - 40);
-      maxX = Math.max(maxX, p.x + 40);
-      maxY = Math.max(maxY, p.y + 40);
+    layout.nodes.forEach((n) => {
+      minX = Math.min(minX, n.x - 40);
+      minY = Math.min(minY, n.y - 40);
+      maxX = Math.max(maxX, n.x + 40);
+      maxY = Math.max(maxY, n.y + 40);
     });
-    liveClusters.forEach((g) => {
-      minX = Math.min(minX, g.cx - g.radius);
-      minY = Math.min(minY, g.cy - g.radius - 30);
-      maxX = Math.max(maxX, g.cx + g.radius);
-      maxY = Math.max(maxY, g.cy + g.radius);
-    });
-    const PAD = 20;
+    const PAD = 150; // marge généreuse : absorbe les déplacements normaux sans recalculer le zoom
     return { x: minX - PAD, y: minY - PAD, w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 };
   })();
+
+  const effectiveViewBox = { x: viewBox.x + panOffset.x, y: viewBox.y + panOffset.y, w: viewBox.w, h: viewBox.h };
 
   // Position "brute" d'une extrémité de lien (centre exact pour un personnage, centre du
   // cercle de groupe pour une affectation) — sert à calculer la direction du trait.
@@ -211,6 +229,11 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     setClusterDragging({ startPoint, startPositions });
   }
 
+  function handleBackgroundPointerDown(e) {
+    e.preventDefault();
+    setPanning({ startClientX: e.clientX, startClientY: e.clientY, startOffset: panOffset });
+  }
+
   useEffect(() => {
     if (!dragging) return;
     function handleMove(e) {
@@ -220,6 +243,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     }
     function handleUp() {
       setDragging(null);
+      persistLayout();
     }
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
@@ -227,6 +251,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging]);
 
   useEffect(() => {
@@ -246,6 +271,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     }
     function handleUp() {
       setClusterDragging(null);
+      persistLayout();
     }
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
@@ -253,7 +279,31 @@ export default function LinksView({ characters, relationTypes, showToast }) {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusterDragging]);
+
+  useEffect(() => {
+    if (!panning) return;
+    const unitsPerPixel = viewBox.w / (containerWidth * zoom);
+    function handleMove(e) {
+      const dxPixels = e.clientX - panning.startClientX;
+      const dyPixels = e.clientY - panning.startClientY;
+      setPanOffset({
+        x: panning.startOffset.x - dxPixels * unitsPerPixel,
+        y: panning.startOffset.y - dyPixels * unitsPerPixel
+      });
+    }
+    function handleUp() {
+      setPanning(null);
+    }
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panning]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -325,9 +375,15 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
   return (
     <div>
-      <p className="modal-sub" style={{ margin: '0 0 10px' }}>
-        Lien de l'aventure
-      </p>
+      <div className="links-toolbar-row">
+        <p className="modal-sub" style={{ margin: 0 }}>
+          Glisse les cercles ou le fond du canvas pour dégager la vue — ça ne change rien aux
+          données, juste l'affichage (ta disposition est mémorisée pour toi).
+        </p>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetLayout}>
+          Réinitialiser la disposition
+        </button>
+      </div>
       <div className="links-canvas-wrap" ref={wrapRef}>
         <div className="zoom-controls">
           <button type="button" onClick={() => zoomBy(-ZOOM_STEP)} aria-label="Dézoomer">
@@ -337,23 +393,40 @@ export default function LinksView({ characters, relationTypes, showToast }) {
           <button type="button" onClick={() => zoomBy(ZOOM_STEP)} aria-label="Zoomer">
             +
           </button>
-          <button type="button" onClick={() => setZoom(1)} className="zoom-reset">
+          <button
+            type="button"
+            onClick={() => {
+              setZoom(1);
+              setPanOffset({ x: 0, y: 0 });
+            }}
+            className="zoom-reset"
+          >
             100%
           </button>
         </div>
         <div className="links-canvas-scroll">
           <svg
             ref={svgRef}
-            viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+            viewBox={`${effectiveViewBox.x} ${effectiveViewBox.y} ${effectiveViewBox.w} ${effectiveViewBox.h}`}
             width={containerWidth * zoom}
             height={containerWidth * (viewBox.h / viewBox.w) * zoom}
-            className="links-canvas"
+            className={`links-canvas ${panning ? 'is-panning' : ''}`}
           >
             <defs>
               <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M0 0L10 5L0 10Z" fill="var(--text-dim)" />
               </marker>
             </defs>
+
+            <rect
+              x={viewBox.x - viewBox.w}
+              y={viewBox.y - viewBox.h}
+              width={viewBox.w * 3}
+              height={viewBox.h * 3}
+              fill="transparent"
+              className="links-canvas-background"
+              onPointerDown={handleBackgroundPointerDown}
+            />
 
             {liveClusters.map((g, i) => (
               <g key={g.key} className="link-cluster" onPointerDown={(e) => handleClusterPointerDown(e, g)}>
