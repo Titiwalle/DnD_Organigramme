@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+
+# Node / frontend build tooling
+node_modules/
+
+# Données locales (générées automatiquement au premier lancement, ne pas versionner)
+backend/data/*.json
+
+# Environnement
+.env
+
+# Éditeurs
+.vscode/
+.idea/
