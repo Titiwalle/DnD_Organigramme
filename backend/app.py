@@ -74,7 +74,7 @@ def ensure_storage():
     if not os.path.exists(USERS_FILE):
         admin = {
             "username": "Admin",
-            "passwordHash": generate_password_hash("UneChouette"),
+            "passwordHash": generate_password_hash("MDPparDEFAULT"),
             "role": "admin",
             "createdAt": now_ms(),
         }
