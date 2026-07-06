@@ -21,6 +21,7 @@ export default function App() {
   const [relationTypes, setRelationTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', role: 'all', affectation: 'all' });
+  const [sortBy, setSortBy] = useState('updated');
   const [showNewModal, setShowNewModal] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -149,6 +150,12 @@ export default function App() {
     return true;
   });
 
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'testimonies') return (b.temoignages?.length || 0) - (a.temoignages?.length || 0);
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+
   const detailChar = characters.find((c) => c.id === detailId);
 
   let content;
@@ -166,6 +173,7 @@ export default function App() {
         <div>
           <p className="brand-eyebrow">Registre commun</p>
           <h1 className="brand-title">Le Registre des Compagnons</h1>
+          <p className="brand-sub">Chaque nom, une histoire commune.</p>
         </div>
         <div className="whoami">
           Connectée en tant que <b>{user.username}</b>
@@ -206,10 +214,15 @@ export default function App() {
         <select value={filters.affectation} onChange={(e) => setFilters((f) => ({ ...f, affectation: e.target.value }))}>
           <option value="all">Toutes affectations</option>
           {affectations.map((a) => (
-            <option key={a} value={a}>
-              {a}
+            <option key={a.name} value={a.name}>
+              {a.name}
             </option>
           ))}
+        </select>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="updated">Dernière modification</option>
+          <option value="name">Nom (A-Z)</option>
+          <option value="testimonies">Nombre de témoignages</option>
         </select>
         <span className="spacer"></span>
         <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>
@@ -219,7 +232,7 @@ export default function App() {
 
       {filtered.length > 0 ? (
         <div className="grid">
-          {filtered.map((c) => (
+          {sorted.map((c) => (
             <CharacterCard key={c.id} character={c} onOpen={setDetailId} />
           ))}
         </div>
@@ -239,7 +252,7 @@ export default function App() {
         </>
       )}
 
-      {view === 'liens' && <LinksView characters={characters} relationTypes={relationTypes} showToast={showToast} />}
+      {view === 'liens' && <LinksView characters={characters} relationTypes={relationTypes} affectations={affectations} showToast={showToast} />}
 
       {view === 'admin' && user.role === 'admin' && (
         <AdminTools
@@ -261,7 +274,7 @@ export default function App() {
             <CharacterForm
               submitLabel="Ajouter au registre"
               statutSuggestions={statuts}
-              affectationSuggestions={affectations}
+              affectationSuggestions={affectations.map((a) => a.name)}
               onSubmit={handleCreate}
               onCancel={() => setShowNewModal(false)}
             />
@@ -280,7 +293,7 @@ export default function App() {
           character={detailChar}
           pseudo={user.username}
           statutSuggestions={statuts}
-          affectationSuggestions={affectations}
+          affectationSuggestions={affectations.map((a) => a.name)}
           onClose={() => setDetailId(null)}
           onUpdate={handleUpdateGeneral}
           onDelete={(id) =>

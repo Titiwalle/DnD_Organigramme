@@ -26,10 +26,7 @@ function splitEntityValue(v) {
   return { kind: v.slice(0, idx), id: v.slice(idx + 1) };
 }
 
-const CLUSTER_COLORS = ['var(--gold-bright)', 'var(--teal-bright)', 'var(--burgundy-bright)', '#8f7fe0', '#e0954a'];
-function clusterColor(i) {
-  return CLUSTER_COLORS[i % CLUSTER_COLORS.length];
-}
+const FALLBACK_CLUSTER_COLORS = ['var(--gold-bright)', 'var(--teal-bright)', 'var(--burgundy-bright)', '#8f7fe0', '#e0954a'];
 
 const VIEW_W = 800;
 const VIEW_H = 760;
@@ -37,14 +34,24 @@ const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.15;
 
-export default function LinksView({ characters, relationTypes, showToast }) {
+const CSS_VARS_FOR_EXPORT = [
+  '--bg', '--surface', '--border', '--border-soft', '--gold', '--gold-bright',
+  '--burgundy', '--burgundy-bright', '--teal', '--teal-bright', '--text', '--text-muted', '--text-dim'
+];
+
+export default function LinksView({ characters, relationTypes, affectations, showToast }) {
   const svgRef = useRef(null);
   const wrapRef = useRef(null);
+  const scrollRef = useRef(null);
   const overridesRef = useRef({});
+  const zoomRef = useRef(1);
+  const panOffsetRef = useRef({ x: 0, y: 0 });
   const [containerWidth, setContainerWidth] = useState(800);
   const [relations, setRelations] = useState([]);
   const [fromValue, setFromValue] = useState('');
   const [toValue, setToValue] = useState('');
+  const [fromText, setFromText] = useState('');
+  const [toText, setToText] = useState('');
   const [type, setType] = useState('');
   const [typeCustom, setTypeCustom] = useState('');
   const [confirm, setConfirm] = useState(null);
@@ -69,12 +76,16 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
   useEffect(() => {
     refresh();
-    api.getCanvasLayout().then(setOverrides).catch(() => {});
+    api.getCanvasLayout().then((data) => {
+      setOverrides(data.overrides || {});
+      setZoom(data.zoom || 1);
+      setPanOffset(data.panOffset || { x: 0, y: 0 });
+    }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    overridesRef.current = overrides;
-  }, [overrides]);
+  useEffect(() => { overridesRef.current = overrides; }, [overrides]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panOffsetRef.current = panOffset; }, [panOffset]);
 
   useEffect(() => {
     if (!type && relationTypes.length > 0) setType(relationTypes[0]);
@@ -84,8 +95,12 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     api.getRelations().then(setRelations).catch((e) => showToast(e.message));
   }
 
-  function persistLayout() {
-    api.saveCanvasLayout(overridesRef.current).catch((e) => showToast(e.message));
+  function persistLayout(overridesArg, zoomArg, panArg) {
+    api.saveCanvasLayout({
+      overrides: overridesArg !== undefined ? overridesArg : overridesRef.current,
+      zoom: zoomArg !== undefined ? zoomArg : zoomRef.current,
+      panOffset: panArg !== undefined ? panArg : panOffsetRef.current
+    }).catch((e) => showToast(e.message));
   }
 
   async function handleResetLayout() {
@@ -105,7 +120,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
       const nom = (c.affectationNom || '').trim();
       const key = `${c.affectationType}|${nom.toLowerCase()}`;
       const label = nom || c.affectationType;
-      if (!map.has(key)) map.set(key, { key, label, members: [] });
+      if (!map.has(key)) map.set(key, { key, label, affectationType: c.affectationType, members: [] });
       map.get(key).members.push(c);
     });
     return Array.from(map.values());
@@ -128,6 +143,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
         const mAngle = (2 * Math.PI * mi) / Math.max(n, 1) - Math.PI / 2;
         return {
           nodeKey: entityValue('character', c.id),
+          clusterKey: g.key,
           id: c.id,
           name: c.name,
           classe: c.classe,
@@ -138,7 +154,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
         };
       });
 
-      return { key: g.key, label: g.label, nodes };
+      return { key: g.key, label: g.label, affectationType: g.affectationType, nodes };
     });
 
     return { clusters, nodes: clusters.flatMap((c) => c.nodes) };
@@ -146,11 +162,33 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
   const nodeById = Object.fromEntries(layout.nodes.map((n) => [n.nodeKey, n]));
 
+  // Si un groupe entier a été déplacé (drag), un membre sans override individuel (par
+  // exemple un personnage tout juste créé) doit quand même apparaître avec le groupe,
+  // pas à son ancienne place par défaut.
+  const groupDeltaByClusterKey = {};
+  layout.clusters.forEach((g) => {
+    const dragged = g.nodes.filter((n) => overrides[n.nodeKey]);
+    if (dragged.length === 0) {
+      groupDeltaByClusterKey[g.key] = { dx: 0, dy: 0 };
+    } else {
+      const dx = dragged.reduce((s, n) => s + (overrides[n.nodeKey].x - n.x), 0) / dragged.length;
+      const dy = dragged.reduce((s, n) => s + (overrides[n.nodeKey].y - n.y), 0) / dragged.length;
+      groupDeltaByClusterKey[g.key] = { dx, dy };
+    }
+  });
+
   function pos(nodeKey) {
     const base = nodeById[nodeKey];
     if (!base) return null;
     const o = overrides[nodeKey];
-    return o ? { ...base, x: o.x, y: o.y } : base;
+    if (o) return { ...base, x: o.x, y: o.y };
+    const delta = groupDeltaByClusterKey[base.clusterKey] || { dx: 0, dy: 0 };
+    return { ...base, x: base.x + delta.dx, y: base.y + delta.dy };
+  }
+
+  function clusterColorFor(g, i) {
+    const found = affectations.find((a) => a.name.toLowerCase() === (g.affectationType || '').toLowerCase());
+    return found ? found.color : FALLBACK_CLUSTER_COLORS[i % FALLBACK_CLUSTER_COLORS.length];
   }
 
   const liveClusters = layout.clusters.map((g) => {
@@ -158,7 +196,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     const cx = livePositions.reduce((s, p) => s + p.x, 0) / livePositions.length;
     const cy = livePositions.reduce((s, p) => s + p.y, 0) / livePositions.length;
     const maxDist = Math.max(30, ...livePositions.map((p) => Math.hypot(p.x - cx, p.y - cy)));
-    return { key: g.key, label: g.label, nodes: g.nodes, cx, cy, radius: maxDist + 50 };
+    return { key: g.key, label: g.label, affectationType: g.affectationType, nodes: g.nodes, cx, cy, radius: maxDist + 50 };
   });
   const clusterByKey = Object.fromEntries(liveClusters.map((g) => [g.key, g]));
 
@@ -295,6 +333,7 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     }
     function handleUp() {
       setPanning(null);
+      persistLayout();
     }
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
@@ -307,7 +346,11 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
   async function handleCreate(e) {
     e.preventDefault();
-    if (!fromValue || !toValue || fromValue === toValue) {
+    if (!fromValue || !toValue) {
+      showToast('Choisis un personnage ou un groupe existant des deux côtés (utilise la liste qui apparaît en tapant).');
+      return;
+    }
+    if (fromValue === toValue) {
       showToast('Choisis deux extrémités différentes.');
       return;
     }
@@ -340,7 +383,79 @@ export default function LinksView({ characters, relationTypes, showToast }) {
   }
 
   function zoomBy(delta) {
-    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))));
+    setZoom((z) => {
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2)));
+      persistLayout(undefined, next, undefined);
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function handleWheel(e) {
+      e.preventDefault();
+      zoomBy(e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP);
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleResetView() {
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+    persistLayout(undefined, 1, { x: 0, y: 0 });
+  }
+
+  function handleExportPng() {
+    const svg = svgRef.current;
+    if (!svg) return;
+    try {
+      const clone = svg.cloneNode(true);
+      const computed = getComputedStyle(document.documentElement);
+      const decls = CSS_VARS_FOR_EXPORT.map((v) => `${v}: ${computed.getPropertyValue(v).trim() || 'inherit'};`).join(' ');
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.textContent = `:root { ${decls} }`;
+      clone.insertBefore(styleEl, clone.firstChild);
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+      const svgString = new XMLSerializer().serializeToString(clone);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = () => {
+        const scaleFactor = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = svg.width.baseVal.value * scaleFactor;
+        canvas.height = svg.height.baseVal.value * scaleFactor;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#15130f';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            showToast('Export impossible sur ce navigateur.');
+            return;
+          }
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'registre-liens.png';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }, 'image/png');
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        showToast("Impossible d'exporter l'image sur ce navigateur.");
+      };
+      img.src = url;
+    } catch (err) {
+      showToast('Export impossible : ' + err.message);
+    }
   }
 
   if (characters.length < 2) {
@@ -352,37 +467,37 @@ export default function LinksView({ characters, relationTypes, showToast }) {
     );
   }
 
-  const entityOptions = (
-    <>
-      <optgroup label="Personnages">
-        {characters.map((c) => (
-          <option key={`c-${c.id}`} value={entityValue('character', c.id)}>
-            {c.name}
-          </option>
-        ))}
-      </optgroup>
-      {groups.length > 1 && (
-        <optgroup label="Groupes (affectations)">
-          {groups.map((g) => (
-            <option key={`g-${g.key}`} value={entityValue('affectation', g.key)}>
-              {g.label}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </>
-  );
+  const entityChoices = [
+    ...characters.map((c) => ({ label: c.name, value: entityValue('character', c.id) })),
+    ...(groups.length > 1 ? groups.map((g) => ({ label: g.label, value: entityValue('affectation', g.key) })) : [])
+  ];
+  const entityValueByLabel = Object.fromEntries(entityChoices.map((e) => [e.label, e.value]));
+
+  function handleFromTextChange(text) {
+    setFromText(text);
+    setFromValue(entityValueByLabel[text] || '');
+  }
+
+  function handleToTextChange(text) {
+    setToText(text);
+    setToValue(entityValueByLabel[text] || '');
+  }
 
   return (
     <div>
       <div className="links-toolbar-row">
         <p className="modal-sub" style={{ margin: 0 }}>
           Glisse les cercles ou le fond du canvas pour dégager la vue — ça ne change rien aux
-          données, juste l'affichage (ta disposition est mémorisée pour toi).
+          données, juste l'affichage (ta disposition, ton zoom et ton cadrage sont mémorisés pour toi).
         </p>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetLayout}>
-          Réinitialiser la disposition
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={handleExportPng}>
+            Exporter en PNG
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetLayout}>
+            Réinitialiser la disposition
+          </button>
+        </div>
       </div>
       <div className="links-canvas-wrap" ref={wrapRef}>
         <div className="zoom-controls">
@@ -393,18 +508,11 @@ export default function LinksView({ characters, relationTypes, showToast }) {
           <button type="button" onClick={() => zoomBy(ZOOM_STEP)} aria-label="Zoomer">
             +
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setZoom(1);
-              setPanOffset({ x: 0, y: 0 });
-            }}
-            className="zoom-reset"
-          >
+          <button type="button" onClick={handleResetView} className="zoom-reset">
             100%
           </button>
         </div>
-        <div className="links-canvas-scroll">
+        <div className="links-canvas-scroll" ref={scrollRef}>
           <svg
             ref={svgRef}
             viewBox={`${effectiveViewBox.x} ${effectiveViewBox.y} ${effectiveViewBox.w} ${effectiveViewBox.h}`}
@@ -430,8 +538,8 @@ export default function LinksView({ characters, relationTypes, showToast }) {
 
             {liveClusters.map((g, i) => (
               <g key={g.key} className="link-cluster" onPointerDown={(e) => handleClusterPointerDown(e, g)}>
-                <circle cx={g.cx} cy={g.cy} r={g.radius} fill={clusterColor(i)} fillOpacity="0.1" stroke={clusterColor(i)} strokeOpacity="0.5" strokeWidth="1.2" />
-                <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" className="cluster-label" fill={clusterColor(i)}>
+                <circle cx={g.cx} cy={g.cy} r={g.radius} fill={clusterColorFor(g, i)} fillOpacity="0.1" stroke={clusterColorFor(g, i)} strokeOpacity="0.5" strokeWidth="1.2" />
+                <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" className="cluster-label" fill={clusterColorFor(g, i)}>
                   {g.label}
                 </text>
               </g>
@@ -490,10 +598,13 @@ export default function LinksView({ characters, relationTypes, showToast }) {
       <div className="link-form-card">
         <h3 className="link-form-title">Créer un lien</h3>
         <form onSubmit={handleCreate} className="link-form">
-          <select value={fromValue} onChange={(e) => setFromValue(e.target.value)}>
-            <option value="">Choisir…</option>
-            {entityOptions}
-          </select>
+          <input
+            type="text"
+            list="link-entity-list"
+            placeholder="Personnage ou groupe…"
+            value={fromText}
+            onChange={(e) => handleFromTextChange(e.target.value)}
+          />
           <span className="link-form-word">est</span>
           <select value={type} onChange={(e) => setType(e.target.value)}>
             {relationTypes.map((t) => (
@@ -506,10 +617,18 @@ export default function LinksView({ characters, relationTypes, showToast }) {
             <input type="text" placeholder="précise…" value={typeCustom} onChange={(e) => setTypeCustom(e.target.value)} />
           )}
           <span className="link-form-word">de</span>
-          <select value={toValue} onChange={(e) => setToValue(e.target.value)}>
-            <option value="">Choisir…</option>
-            {entityOptions}
-          </select>
+          <input
+            type="text"
+            list="link-entity-list"
+            placeholder="Personnage ou groupe…"
+            value={toText}
+            onChange={(e) => handleToTextChange(e.target.value)}
+          />
+          <datalist id="link-entity-list">
+            {entityChoices.map((e) => (
+              <option key={e.value} value={e.label} />
+            ))}
+          </datalist>
           <button type="submit" className="btn btn-primary btn-sm">
             Ajouter
           </button>

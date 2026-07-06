@@ -31,7 +31,14 @@ DEFAULT_STATUTS = [
     "Fondatrice",
 ]
 
-DEFAULT_AFFECTATIONS = ["Ville", "Académie", "Guilde", "Patapote"]
+DEFAULT_AFFECTATION_COLOR = "#c9a227"
+
+DEFAULT_AFFECTATIONS = [
+    {"name": "Ville", "color": "#c9a227"},
+    {"name": "Académie", "color": "#4a7566"},
+    {"name": "Guilde", "color": "#b25656"},
+    {"name": "Patapote", "color": "#8f7fe0"},
+]
 
 MAX_AVATAR_LENGTH = 1_800_000  # ~ image de 1.3 Mo encodée en base64
 
@@ -131,7 +138,9 @@ def remember_statut(value):
 def load_affectations():
     ensure_storage()
     with open(AFFECTATIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        raw = json.load(f)
+    # Compatibilité : d'anciennes installations stockent une simple liste de noms (chaînes).
+    return [a if isinstance(a, dict) else {"name": a, "color": DEFAULT_AFFECTATION_COLOR} for a in raw]
 
 
 def save_affectations(affectations):
@@ -139,15 +148,8 @@ def save_affectations(affectations):
         json.dump(affectations, f, ensure_ascii=False, indent=2)
 
 
-def remember_affectation(value):
-    """Ajoute une nouvelle affectation à la liste connue, si elle n'y est pas déjà (comparaison insensible à la casse)."""
-    value = (value or "").strip()
-    if not value:
-        return
-    affectations = load_affectations()
-    if not any(a.lower() == value.lower() for a in affectations):
-        affectations.append(value)
-        save_affectations(affectations)
+def find_affectation(affectations, name):
+    return next((a for a in affectations if a["name"].lower() == name.lower()), None)
 
 
 def load_relation_types():
@@ -221,7 +223,9 @@ def login_required(fn):
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if session.get("role") != "admin":
+        users = load_users()
+        current = find_user(users, session.get("username", ""))
+        if not current or current["role"] != "admin":
             return jsonify({"error": "Réservé aux comptes admin."}), 403
         return fn(*args, **kwargs)
     return wrapper
@@ -267,7 +271,13 @@ def logout():
 def me():
     if "username" not in session:
         return jsonify(None)
-    return jsonify({"username": session["username"], "role": session["role"]})
+    users = load_users()
+    current = find_user(users, session["username"])
+    if not current:
+        session.clear()
+        return jsonify(None)
+    session["role"] = current["role"]
+    return jsonify({"username": current["username"], "role": current["role"]})
 
 
 @app.get("/api/users")
@@ -392,7 +402,7 @@ def delete_statut(value):
 @login_required
 def list_affectations():
     affectations = load_affectations()
-    return jsonify(sorted(affectations, key=lambda a: a.lower()))
+    return jsonify(sorted(affectations, key=lambda a: a["name"].lower()))
 
 
 @app.post("/api/affectations")
@@ -401,14 +411,32 @@ def list_affectations():
 def create_affectation():
     body = request.get_json(force=True) or {}
     value = (body.get("value") or "").strip()
+    color = (body.get("color") or DEFAULT_AFFECTATION_COLOR).strip()
     if not value:
         return jsonify({"error": "Valeur requise."}), 400
     affectations = load_affectations()
-    if any(a.lower() == value.lower() for a in affectations):
+    if find_affectation(affectations, value):
         return jsonify({"error": "Cette affectation existe déjà."}), 400
-    affectations.append(value)
+    affectations.append({"name": value, "color": color})
     save_affectations(affectations)
-    return jsonify(sorted(affectations, key=lambda a: a.lower())), 201
+    return jsonify(sorted(affectations, key=lambda a: a["name"].lower())), 201
+
+
+@app.put("/api/affectations/<path:value>")
+@login_required
+@admin_required
+def update_affectation_color(value):
+    body = request.get_json(force=True) or {}
+    color = (body.get("color") or "").strip()
+    if not color:
+        return jsonify({"error": "Couleur requise."}), 400
+    affectations = load_affectations()
+    entry = find_affectation(affectations, value)
+    if not entry:
+        abort(404)
+    entry["color"] = color
+    save_affectations(affectations)
+    return jsonify(sorted(affectations, key=lambda a: a["name"].lower()))
 
 
 @app.delete("/api/affectations/<path:value>")
@@ -416,9 +444,9 @@ def create_affectation():
 @admin_required
 def delete_affectation(value):
     affectations = load_affectations()
-    affectations = [a for a in affectations if a.lower() != value.lower()]
+    affectations = [a for a in affectations if a["name"].lower() != value.lower()]
     save_affectations(affectations)
-    return jsonify(sorted(affectations, key=lambda a: a.lower()))
+    return jsonify(sorted(affectations, key=lambda a: a["name"].lower()))
 
 
 @app.get("/api/relation-types")
@@ -459,7 +487,12 @@ def delete_relation_type(value):
 @login_required
 def get_canvas_layout():
     layouts = load_canvas_layouts()
-    return jsonify(layouts.get(session["username"], {}))
+    saved = layouts.get(session["username"]) or {}
+    return jsonify({
+        "overrides": saved.get("overrides", {}),
+        "zoom": saved.get("zoom", 1),
+        "panOffset": saved.get("panOffset", {"x": 0, "y": 0}),
+    })
 
 
 @app.put("/api/canvas-layout")
@@ -469,10 +502,15 @@ def save_canvas_layout():
     overrides = body.get("overrides")
     if not isinstance(overrides, dict):
         return jsonify({"error": "Format invalide."}), 400
+    layout_data = {
+        "overrides": overrides,
+        "zoom": body.get("zoom", 1),
+        "panOffset": body.get("panOffset", {"x": 0, "y": 0}),
+    }
     layouts = load_canvas_layouts()
-    layouts[session["username"]] = overrides
+    layouts[session["username"]] = layout_data
     save_canvas_layouts(layouts)
-    return jsonify(overrides)
+    return jsonify(layout_data)
 
 
 @app.delete("/api/canvas-layout")

@@ -13,20 +13,20 @@ export default function Mascot() {
     let intervalId;
 
     if (mode === 'idle') {
-      const delay = 2000 + Math.random() * 5000;              //délais de parler 
+      const delay = 2000 + Math.random() * 5000;
       timeoutId = setTimeout(() => setMode('talking'), delay);
     } else if (mode === 'talking') {
       let ticks = 0;
-      const maxTicks = 6 + Math.floor(Math.random() * 4);     //nombre de battements de bouche
+      const maxTicks = 6 + Math.floor(Math.random() * 4);
       intervalId = setInterval(() => {
         setMouthOpen((v) => !v);
         ticks += 1;
         if (ticks >= maxTicks) {
           setMode('idle');
         }
-      }, 100);                                                //délais entre bouche ouverte et fermé
+      }, 220);
     } else if (mode === 'clicked') {
-      timeoutId = setTimeout(() => setMode('idle'), 200); 
+      timeoutId = setTimeout(() => setMode('idle'), 200);
     }
 
     return () => {
@@ -40,12 +40,7 @@ export default function Mascot() {
   if (mode === 'clicked') src = COMPLEX;
   else if (mode === 'talking' && mouthOpen) src = SPEAK;
 
-  return (
-  <img
-    src={src}
-    alt="Thêtas"
-    className={`mascot ${mode === 'talking' ? 'mascot-talking' : ''} ${mode === 'clicked' ? 'mascot-clicked' : ''}`}
-    onClick={() => setMode('clicked')}
-  />
-);  
+  const stateClass = mode === 'talking' ? 'mascot-talking' : mode === 'clicked' ? 'mascot-clicked' : '';
+
+  return <img src={src} alt="Thêtas" className={`mascot ${stateClass}`} onClick={() => setMode('clicked')} />;
 }

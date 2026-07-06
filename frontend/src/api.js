@@ -41,7 +41,9 @@ export const api = {
   deleteStatut: (value) => request(`/statuts/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
   getAffectations: () => request('/affectations'),
-  createAffectation: (value) => request('/affectations', { method: 'POST', body: JSON.stringify({ value }) }),
+  createAffectation: (value, color) => request('/affectations', { method: 'POST', body: JSON.stringify({ value, color }) }),
+  updateAffectationColor: (value, color) =>
+    request(`/affectations/${encodeURIComponent(value)}`, { method: 'PUT', body: JSON.stringify({ color }) }),
   deleteAffectation: (value) => request(`/affectations/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
   getRelationTypes: () => request('/relation-types'),
@@ -49,7 +51,7 @@ export const api = {
   deleteRelationType: (value) => request(`/relation-types/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
   getCanvasLayout: () => request('/canvas-layout'),
-  saveCanvasLayout: (overrides) => request('/canvas-layout', { method: 'PUT', body: JSON.stringify({ overrides }) }),
+  saveCanvasLayout: (data) => request('/canvas-layout', { method: 'PUT', body: JSON.stringify(data) }),
   resetCanvasLayout: () => request('/canvas-layout', { method: 'DELETE' }),
 
   createCharacter: (data) =>

@@ -56,10 +56,90 @@ function ManagedList({ title, hint, items, onAdd, onDelete, protectedItems = [] 
   );
 }
 
+function AffectationList({ items, onAdd, onColorChange, onDelete }) {
+  const [value, setValue] = useState('');
+  const [color, setColor] = useState('#c9a227');
+  const [confirm, setConfirm] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!value.trim()) return;
+    await onAdd(value.trim(), color);
+    setValue('');
+    setColor('#c9a227');
+  }
+
+  return (
+    <div className="link-form-card">
+      <h3 className="link-form-title">Affectations</h3>
+      <p className="modal-sub" style={{ margin: '0 0 14px' }}>
+        Villes, académies, guildes… proposées dans le formulaire de fiche. Chacune a une couleur,
+        utilisée pour ses groupes dans l'onglet Liens.
+      </p>
+
+      <form onSubmit={handleSubmit} className="link-form" style={{ marginBottom: 16 }}>
+        <input type="text" placeholder="Nouvelle affectation…" value={value} onChange={(e) => setValue(e.target.value)} />
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          className="color-swatch-input"
+          title="Couleur"
+        />
+        <button type="submit" className="btn btn-primary btn-sm">
+          Ajouter
+        </button>
+      </form>
+
+      {items.length === 0 ? (
+        <p style={{ color: 'var(--text-dim)', fontStyle: 'italic', fontSize: 14 }}>Aucune valeur pour l'instant.</p>
+      ) : (
+        <div className="link-list">
+          {items.map((item) => (
+            <div key={item.name} className="link-list-row">
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="color"
+                  value={item.color}
+                  onChange={(e) => onColorChange(item.name, e.target.value)}
+                  className="color-swatch-input"
+                  title="Changer la couleur"
+                />
+                {item.name}
+              </span>
+              <button onClick={() => setConfirm(item.name)}>Supprimer</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          message={`Supprimer "${confirm}" de la liste ? Les fiches qui l'utilisent déjà ne sont pas modifiées.`}
+          onConfirm={() => {
+            onDelete(confirm);
+            setConfirm(null);
+          }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function AdminTools({ statuts, affectations, relationTypes, onStatutsChange, onAffectationsChange, onRelationTypesChange, showToast }) {
-  async function handleAddAffectation(value) {
+  async function handleAddAffectation(value, color) {
     try {
-      const updated = await api.createAffectation(value);
+      const updated = await api.createAffectation(value, color);
+      onAffectationsChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleChangeAffectationColor(value, color) {
+    try {
+      const updated = await api.updateAffectationColor(value, color);
       onAffectationsChange(updated);
     } catch (err) {
       showToast(err.message);
@@ -113,11 +193,10 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
 
   return (
     <div>
-      <ManagedList
-        title="Affectations"
-        hint="Villes, académies, guildes… proposées dans le formulaire de fiche."
+      <AffectationList
         items={affectations}
         onAdd={handleAddAffectation}
+        onColorChange={handleChangeAffectationColor}
         onDelete={handleDeleteAffectation}
       />
       <ManagedList
