@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api.js';
 
 const STATE_LABELS = {
-  talking: 'Quand elle parle',
+  talking: 'Quand il parle',
   clicked: 'Quand on clique dessus',
   hover: 'Au survol de la souris'
 };
@@ -120,7 +120,7 @@ export default function ThetasTools({ showToast }) {
     <div>
       <p className="modal-sub" style={{ marginBottom: 16 }}>
         Personnalise ce que la mascotte affiche pour <b>tout le monde</b>, dans trois situations.
-        Une image remplace son visage, un texte apparaît dans une petite bulle à côté d'elle.
+        Une image remplace son visage, un texte apparaît dans une petite bulle à côté de lui.
       </p>
       {Object.keys(STATE_LABELS).map((key) => (
         <StateEditor

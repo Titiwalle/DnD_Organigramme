@@ -3,15 +3,7 @@ import { api } from '../api.js';
 import { ClassIcon } from '../icons.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
 
-const FAMILY = new Set(['Parent', 'Enfant', 'Grand-parent', 'Petit-enfant', 'Frère/Sœur', 'Oncle/Tante', 'Neveu/Nièce', 'Cousin/Cousine']);
-const POSITIVE = new Set(['Allié', 'Ami', 'Mentor', 'Élève']);
-
-function colorFor(type) {
-  if (FAMILY.has(type)) return 'var(--gold-bright)';
-  if (POSITIVE.has(type)) return 'var(--teal-bright)';
-  if (type === 'Rival') return 'var(--burgundy-bright)';
-  return 'var(--text-dim)';
-}
+const FALLBACK_TYPE_COLOR = 'var(--text-dim)';
 
 function relationLabel(r) {
   return r.type === 'Autre' && r.typeCustom ? r.typeCustom : r.type;
@@ -88,7 +80,7 @@ export default function LinksView({ characters, relationTypes, affectations, sho
   useEffect(() => { panOffsetRef.current = panOffset; }, [panOffset]);
 
   useEffect(() => {
-    if (!type && relationTypes.length > 0) setType(relationTypes[0]);
+    if (!type && relationTypes.length > 0) setType(relationTypes[0].name);
   }, [relationTypes]);
 
   function refresh() {
@@ -189,6 +181,11 @@ export default function LinksView({ characters, relationTypes, affectations, sho
   function clusterColorFor(g, i) {
     const found = affectations.find((a) => a.name.toLowerCase() === (g.affectationType || '').toLowerCase());
     return found ? found.color : FALLBACK_CLUSTER_COLORS[i % FALLBACK_CLUSTER_COLORS.length];
+  }
+
+  function colorFor(typeName) {
+    const found = relationTypes.find((t) => t.name.toLowerCase() === (typeName || '').toLowerCase());
+    return found ? found.color : FALLBACK_TYPE_COLOR;
   }
 
   const liveClusters = layout.clusters.map((g) => {
@@ -651,8 +648,8 @@ export default function LinksView({ characters, relationTypes, affectations, sho
           <span className="link-form-word">est</span>
           <select value={type} onChange={(e) => setType(e.target.value)}>
             {relationTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
+              <option key={t.name} value={t.name}>
+                {t.name}
               </option>
             ))}
           </select>

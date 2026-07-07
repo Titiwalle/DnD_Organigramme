@@ -56,12 +56,17 @@ function ManagedList({ title, hint, items, onAdd, onDelete, protectedItems = [] 
   );
 }
 
-function AffectationList({ items, onAdd, onRename, onColorChange, onDelete }) {
+// Liste avec couleur + renommage par élément — utilisée pour les affectations ET les types de liens.
+function ColoredList({ title, hint, addPlaceholder, items, onAdd, onRename, onColorChange, onDelete, protectedItems = [] }) {
   const [value, setValue] = useState('');
   const [color, setColor] = useState('#c9a227');
   const [confirm, setConfirm] = useState(null);
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState('');
+
+  function isProtected(item) {
+    return protectedItems.some((p) => p.toLowerCase() === item.name.toLowerCase());
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -87,14 +92,11 @@ function AffectationList({ items, onAdd, onRename, onColorChange, onDelete }) {
 
   return (
     <div className="link-form-card">
-      <h3 className="link-form-title">Affectations</h3>
-      <p className="modal-sub" style={{ margin: '0 0 14px' }}>
-        Villes, académies, guildes… proposées dans le formulaire de fiche. Chacune a une couleur,
-        utilisée pour ses groupes dans l'onglet Liens.
-      </p>
+      <h3 className="link-form-title">{title}</h3>
+      {hint && <p className="modal-sub" style={{ margin: '0 0 14px' }}>{hint}</p>}
 
       <form onSubmit={handleSubmit} className="link-form" style={{ marginBottom: 16 }}>
-        <input type="text" placeholder="Nouvelle affectation…" value={value} onChange={(e) => setValue(e.target.value)} />
+        <input type="text" placeholder={addPlaceholder} value={value} onChange={(e) => setValue(e.target.value)} />
         <input
           type="color"
           value={color}
@@ -140,9 +142,9 @@ function AffectationList({ items, onAdd, onRename, onColorChange, onDelete }) {
                     <button onClick={() => setEditing(null)}>Annuler</button>
                   </>
                 ) : (
-                  <button onClick={() => startEditing(item)}>Modifier</button>
+                  !isProtected(item) && <button onClick={() => startEditing(item)}>Modifier</button>
                 )}
-                <button onClick={() => setConfirm(item.name)}>Supprimer</button>
+                {!isProtected(item) && <button onClick={() => setConfirm(item.name)}>Supprimer</button>}
               </span>
             </div>
           ))}
@@ -218,9 +220,27 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
     }
   }
 
-  async function handleAddRelationType(value) {
+  async function handleAddRelationType(value, color) {
     try {
-      const updated = await api.createRelationType(value);
+      const updated = await api.createRelationType(value, color);
+      onRelationTypesChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleChangeRelationTypeColor(value, color) {
+    try {
+      const updated = await api.updateRelationType(value, { color });
+      onRelationTypesChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleRenameRelationType(value, name) {
+    try {
+      const updated = await api.updateRelationType(value, { name });
       onRelationTypesChange(updated);
     } catch (err) {
       showToast(err.message);
@@ -248,7 +268,10 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
           Télécharger une sauvegarde
         </a>
       </div>
-      <AffectationList
+      <ColoredList
+        title="Affectations"
+        hint="Villes, académies, guildes… proposées dans le formulaire de fiche. Chacune a une couleur, utilisée pour ses groupes dans l'onglet Liens."
+        addPlaceholder="Nouvelle affectation…"
         items={affectations}
         onAdd={handleAddAffectation}
         onRename={handleRenameAffectation}
@@ -262,11 +285,14 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
         onAdd={handleAddStatut}
         onDelete={handleDeleteStatut}
       />
-      <ManagedList
+      <ColoredList
         title="Types de liens"
-        hint="Proposés dans l'onglet Liens pour relier deux personnages ou affectations. « Autre » ne peut pas être supprimé."
+        hint="Proposés dans l'onglet Liens pour relier deux personnages ou affectations. « Autre » ne peut être ni renommé ni supprimé, mais sa couleur reste modifiable."
+        addPlaceholder="Nouveau type de lien…"
         items={relationTypes}
         onAdd={handleAddRelationType}
+        onRename={handleRenameRelationType}
+        onColorChange={handleChangeRelationTypeColor}
         onDelete={handleDeleteRelationType}
         protectedItems={['Autre']}
       />

@@ -50,20 +50,20 @@ DEFAULT_AFFECTATIONS = [
 MAX_AVATAR_LENGTH = 1_800_000  # ~ image de 1.3 Mo encodée en base64
 
 DEFAULT_RELATION_TYPES = [
-    "Parent",
-    "Enfant",
-    "Grand-parent",
-    "Petit-enfant",
-    "Frère/Sœur",
-    "Oncle/Tante",
-    "Neveu/Nièce",
-    "Cousin/Cousine",
-    "Allié",
-    "Rival",
-    "Ami",
-    "Mentor",
-    "Élève",
-    "Autre",
+    {"name": "Parent", "color": "#e6c458"},
+    {"name": "Enfant", "color": "#e6c458"},
+    {"name": "Grand-parent", "color": "#e6c458"},
+    {"name": "Petit-enfant", "color": "#e6c458"},
+    {"name": "Frère/Sœur", "color": "#e6c458"},
+    {"name": "Oncle/Tante", "color": "#e6c458"},
+    {"name": "Neveu/Nièce", "color": "#e6c458"},
+    {"name": "Cousin/Cousine", "color": "#e6c458"},
+    {"name": "Allié", "color": "#62967f"},
+    {"name": "Rival", "color": "#b25656"},
+    {"name": "Ami", "color": "#62967f"},
+    {"name": "Mentor", "color": "#62967f"},
+    {"name": "Élève", "color": "#62967f"},
+    {"name": "Autre", "color": "#786c56"},
 ]
 
 FRONTEND_DIST = os.path.join(BASE_DIR, "..", "frontend", "dist")
@@ -178,7 +178,9 @@ def find_affectation(affectations, name):
 def load_relation_types():
     ensure_storage()
     with open(RELATION_TYPES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        raw = json.load(f)
+    # Compatibilité : d'anciennes installations stockent une simple liste de noms (chaînes).
+    return [t if isinstance(t, dict) else {"name": t, "color": DEFAULT_AFFECTATION_COLOR} for t in raw]
 
 
 def save_relation_types(types):
@@ -215,9 +217,13 @@ def save_mascot_config(config):
 
 def _autre_last(types):
     """Garde 'Autre' en dernière position de la liste, s'il y est présent."""
-    others = [t for t in types if t.lower() != "autre"]
-    autres = [t for t in types if t.lower() == "autre"]
+    others = [t for t in types if t["name"].lower() != "autre"]
+    autres = [t for t in types if t["name"].lower() == "autre"]
     return others + autres
+
+
+def find_relation_type(types, name):
+    return next((t for t in types if t["name"].lower() == name.lower()), None)
 
 
 def load_users():
@@ -536,14 +542,41 @@ def list_relation_types():
 def create_relation_type():
     body = request.get_json(force=True) or {}
     value = (body.get("value") or "").strip()
+    color = (body.get("color") or DEFAULT_AFFECTATION_COLOR).strip()
     if not value:
         return jsonify({"error": "Valeur requise."}), 400
     types = load_relation_types()
-    if any(t.lower() == value.lower() for t in types):
+    if find_relation_type(types, value):
         return jsonify({"error": "Ce type de lien existe déjà."}), 400
-    types.append(value)
+    types.append({"name": value, "color": color})
     save_relation_types(types)
     return jsonify(load_relation_types()), 201
+
+
+@app.put("/api/relation-types/<path:value>")
+@login_required
+@admin_required
+def update_relation_type(value):
+    body = request.get_json(force=True) or {}
+    types = load_relation_types()
+    entry = find_relation_type(types, value)
+    if not entry:
+        abort(404)
+
+    new_name = (body.get("name") or "").strip()
+    if new_name and new_name.lower() != entry["name"].lower():
+        if value.lower() == "autre":
+            return jsonify({"error": "Impossible de renommer 'Autre'."}), 400
+        if find_relation_type(types, new_name):
+            return jsonify({"error": "Un type de lien porte déjà ce nom."}), 400
+        entry["name"] = new_name
+
+    color = (body.get("color") or "").strip()
+    if color:
+        entry["color"] = color
+
+    save_relation_types(types)
+    return jsonify(load_relation_types())
 
 
 @app.delete("/api/relation-types/<path:value>")
@@ -553,7 +586,7 @@ def delete_relation_type(value):
     if value.lower() == "autre":
         return jsonify({"error": "Impossible de supprimer 'Autre'."}), 400
     types = load_relation_types()
-    types = [t for t in types if t.lower() != value.lower()]
+    types = [t for t in types if t["name"].lower() != value.lower()]
     save_relation_types(types)
     return jsonify(load_relation_types())
 

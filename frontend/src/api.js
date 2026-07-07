@@ -47,7 +47,9 @@ export const api = {
   deleteAffectation: (value) => request(`/affectations/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
   getRelationTypes: () => request('/relation-types'),
-  createRelationType: (value) => request('/relation-types', { method: 'POST', body: JSON.stringify({ value }) }),
+  createRelationType: (value, color) => request('/relation-types', { method: 'POST', body: JSON.stringify({ value, color }) }),
+  updateRelationType: (value, data) =>
+    request(`/relation-types/${encodeURIComponent(value)}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteRelationType: (value) => request(`/relation-types/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
   getCanvasLayout: () => request('/canvas-layout'),
