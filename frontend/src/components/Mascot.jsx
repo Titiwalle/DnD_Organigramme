@@ -1,19 +1,14 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api.js';
 
 const FACE = '/thetas-face.png';
 const SPEAK = '/thetas-speak.png';
 const COMPLEX = '/thetas-complex.png';
 
-export default function Mascot() {
+export default function Mascot({ config }) {
   const [mode, setMode] = useState('idle'); // idle | talking | clicked
   const [mouthOpen, setMouthOpen] = useState(false);
   const [hovering, setHovering] = useState(false);
-  const [config, setConfig] = useState({});
-
-  useEffect(() => {
-    api.getMascotConfig().then(setConfig).catch(() => {});
-  }, []);
+  const [overlayState, setOverlayState] = useState(null); // état temporisé actif : talking | clicked | null
 
   useEffect(() => {
     let timeoutId;
@@ -43,12 +38,21 @@ export default function Mascot() {
     };
   }, [mode]);
 
-  // Quel état est actif en ce moment (au plus un à la fois), et sa personnalisation éventuelle.
-  let activeState = null;
-  if (mode === 'clicked') activeState = 'clicked';
-  else if (mode === 'talking' && mouthOpen) activeState = 'talking';
-  else if (hovering) activeState = 'hover';
+  // Ne se déclenche qu'à la TRANSITION vers "talking"/"clicked" (une fois par cycle), pas à
+  // chaque battement de bouche — d'où la dépendance sur `mode` seul, pas `mouthOpen`.
+  useEffect(() => {
+    if ((mode === 'talking' || mode === 'clicked') && config[mode]) {
+      setOverlayState(mode);
+      const duration = (config[mode].duration || 2) * 1000;
+      const timer = setTimeout(() => {
+        setOverlayState((current) => (current === mode ? null : current));
+      }, duration);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
+  const activeState = overlayState || (hovering && config.hover ? 'hover' : null);
   const override = activeState ? config[activeState] : null;
   const sizePercent = override?.size || 100;
 
@@ -57,7 +61,7 @@ export default function Mascot() {
   const stateClass = mode === 'talking' ? 'mascot-talking' : mode === 'clicked' ? 'mascot-clicked' : '';
 
   return (
-    <>
+    <div className="mascot-anchor">
       {override && (
         <div className="mascot-overlay">
           {override.type === 'image' ? (
@@ -85,6 +89,6 @@ export default function Mascot() {
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       />
-    </>
+    </div>
   );
 }

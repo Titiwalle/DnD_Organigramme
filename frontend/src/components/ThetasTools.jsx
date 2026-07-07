@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { api } from '../api.js';
 
 const STATE_LABELS = {
@@ -13,6 +13,9 @@ function StateEditor({ stateKey, current, onSave, onReset, showToast }) {
   const [textColor, setTextColor] = useState(current?.color || '#ece3cf');
   const [imagePreview, setImagePreview] = useState(current?.type === 'image' ? current.value : '');
   const [size, setSize] = useState(current?.size || 100);
+  const [duration, setDuration] = useState(current?.duration || 2);
+
+  const hasDuration = stateKey !== 'hover';
 
   function handleFileChange(e) {
     const file = e.target.files && e.target.files[0];
@@ -29,13 +32,13 @@ function StateEditor({ stateKey, current, onSave, onReset, showToast }) {
         showToast('Choisis une image.');
         return;
       }
-      await onSave(stateKey, 'image', imagePreview, null, size);
+      await onSave(stateKey, 'image', imagePreview, null, size, duration);
     } else {
       if (!text.trim()) {
         showToast('Écris un texte.');
         return;
       }
-      await onSave(stateKey, 'text', text.trim(), textColor, size);
+      await onSave(stateKey, 'text', text.trim(), textColor, size, duration);
     }
   }
 
@@ -99,6 +102,27 @@ function StateEditor({ stateKey, current, onSave, onReset, showToast }) {
         />
       </div>
 
+      {hasDuration && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 6 }}>
+            Durée d'affichage : {duration}s
+          </label>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            step="0.5"
+            value={duration}
+            onChange={(e) => setDuration(Number(e.target.value))}
+            style={{ width: '100%' }}
+          />
+          <p style={{ fontSize: 11.5, color: 'var(--text-dim)', margin: '4px 0 0' }}>
+            Reste affiché ce temps-là dès que "{STATE_LABELS[stateKey].toLowerCase()}" se déclenche,
+            même si la mascotte revient plus vite à son visage normal.
+          </p>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10 }}>
         <button type="button" className="btn btn-primary btn-sm" onClick={handleSave}>
           Enregistrer
@@ -113,18 +137,11 @@ function StateEditor({ stateKey, current, onSave, onReset, showToast }) {
   );
 }
 
-export default function ThetasTools({ showToast }) {
-  const [config, setConfig] = useState(null);
-
-  useEffect(() => {
-    api.getMascotConfig().then(setConfig).catch((e) => showToast(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function handleSave(state, type, value, color, size) {
+export default function ThetasTools({ config, onConfigChange, showToast }) {
+  async function handleSave(state, type, value, color, size, duration) {
     try {
-      const updated = await api.setMascotState(state, type, value, color, size);
-      setConfig(updated);
+      const updated = await api.setMascotState(state, type, value, color, size, duration);
+      onConfigChange(updated);
       showToast('Mascotte mise à jour pour tout le monde.');
     } catch (err) {
       showToast(err.message);
@@ -134,22 +151,18 @@ export default function ThetasTools({ showToast }) {
   async function handleReset(state) {
     try {
       const updated = await api.resetMascotState(state);
-      setConfig(updated);
+      onConfigChange(updated);
     } catch (err) {
       showToast(err.message);
     }
-  }
-
-  if (!config) {
-    return <p className="modal-sub">Chargement…</p>;
   }
 
   return (
     <div>
       <p className="modal-sub" style={{ marginBottom: 16 }}>
         Personnalise ce que la mascotte affiche pour <b>tout le monde</b>, dans trois situations.
-        L'image ou le texte apparaît juste au-dessus de Thêtas, sans bouger avec ses propres
-        animations — Thêtas garde toujours son visage habituel en dessous.
+        L'image ou le texte apparaît juste au-dessus de Thêtas, centré, sans bouger avec ses
+        propres animations — Thêtas garde toujours son visage habituel en dessous.
       </p>
       {Object.keys(STATE_LABELS).map((key) => (
         <StateEditor

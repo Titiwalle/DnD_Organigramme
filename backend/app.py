@@ -879,6 +879,11 @@ def update_mascot_config():
     except (TypeError, ValueError):
         size = 100
     size = max(50, min(200, size))
+    try:
+        duration = float(body.get("duration") or 2)
+    except (TypeError, ValueError):
+        duration = 2
+    duration = max(1, min(10, duration))
 
     if state not in MASCOT_STATES:
         return jsonify({"error": "État invalide."}), 400
@@ -890,7 +895,7 @@ def update_mascot_config():
         return jsonify({"error": "Image trop lourde, réessaie avec une image plus légère."}), 400
 
     config = load_mascot_config()
-    entry = {"type": value_type, "value": value, "size": size}
+    entry = {"type": value_type, "value": value, "size": size, "duration": duration}
     if value_type == "text" and color:
         entry["color"] = color
     config[state] = entry

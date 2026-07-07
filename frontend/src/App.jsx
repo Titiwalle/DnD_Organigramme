@@ -20,6 +20,7 @@ export default function App() {
   const [statuts, setStatuts] = useState([]);
   const [affectations, setAffectations] = useState([]);
   const [relationTypes, setRelationTypes] = useState([]);
+  const [mascotConfig, setMascotConfig] = useState({});
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', role: 'all', affectation: 'all' });
   const [sortBy, setSortBy] = useState('updated');
@@ -45,7 +46,8 @@ export default function App() {
       api.getCharacters().then(setCharacters).catch(() => showToast('Impossible de charger le registre.')),
       api.getStatuts().then(setStatuts).catch(() => {}),
       api.getAffectations().then(setAffectations).catch(() => {}),
-      api.getRelationTypes().then(setRelationTypes).catch(() => {})
+      api.getRelationTypes().then(setRelationTypes).catch(() => {}),
+      api.getMascotConfig().then(setMascotConfig).catch(() => {})
     ]).finally(() => setLoading(false));
   }
 
@@ -89,6 +91,7 @@ export default function App() {
     setStatuts([]);
     setAffectations([]);
     setRelationTypes([]);
+    setMascotConfig({});
     setShowAccountManager(false);
   }
 
@@ -272,7 +275,9 @@ export default function App() {
         />
       )}
 
-      {view === 'thetas' && user.username.toLowerCase() === 'thêtas skoupa' && <ThetasTools showToast={showToast} />}
+      {view === 'thetas' && user.username.toLowerCase() === 'thêtas skoupa' && (
+        <ThetasTools config={mascotConfig} onConfigChange={setMascotConfig} showToast={showToast} />
+      )}
 
       {showNewModal && (
         <div className="overlay">
@@ -328,7 +333,7 @@ export default function App() {
   return (
     <>
       {content}
-      <Mascot />
+      <Mascot config={mascotConfig} />
     </>
   );
 }
