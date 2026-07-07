@@ -6,6 +6,7 @@ import CharacterDetail from './components/CharacterDetail.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import AccountManager from './components/AccountManager.jsx';
 import AdminTools from './components/AdminTools.jsx';
+import ThetasTools from './components/ThetasTools.jsx';
 import LinksView from './components/LinksView.jsx';
 import Mascot from './components/Mascot.jsx';
 import ConfirmModal from './components/ConfirmModal.jsx';
@@ -178,7 +179,7 @@ export default function App() {
         <div className="whoami">
           Connectée en tant que <b>{user.username}</b>
           {user.role === 'admin' ? ' · admin' : ''}
-          {user.role === 'admin' && <button onClick={() => setShowAccountManager(true)}>gérer les comptes</button>}
+          {user.username.toLowerCase() === 'admin' && <button onClick={() => setShowAccountManager(true)}>gérer les comptes</button>}
           <button onClick={handleLogout}>se déconnecter</button>
         </div>
       </div>
@@ -193,6 +194,11 @@ export default function App() {
         {user.role === 'admin' && (
           <button className={`tab ${view === 'admin' ? 'active' : ''}`} onClick={() => setView('admin')}>
             Admin
+          </button>
+        )}
+        {user.username.toLowerCase() === 'thêtas skoupa' && (
+          <button className={`tab ${view === 'thetas' ? 'active' : ''}`} onClick={() => setView('thetas')}>
+            Thêtas
           </button>
         )}
       </div>
@@ -265,6 +271,8 @@ export default function App() {
           showToast={showToast}
         />
       )}
+
+      {view === 'thetas' && user.username.toLowerCase() === 'thêtas skoupa' && <ThetasTools showToast={showToast} />}
 
       {showNewModal && (
         <div className="overlay">

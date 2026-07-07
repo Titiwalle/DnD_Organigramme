@@ -20,6 +20,10 @@ RELATIONS_FILE = os.path.join(DATA_DIR, "relations.json")
 AFFECTATIONS_FILE = os.path.join(DATA_DIR, "affectations.json")
 RELATION_TYPES_FILE = os.path.join(DATA_DIR, "relation_types.json")
 CANVAS_LAYOUTS_FILE = os.path.join(DATA_DIR, "canvas_layouts.json")
+MASCOT_CONFIG_FILE = os.path.join(DATA_DIR, "mascot_config.json")
+
+MAX_MASCOT_VALUE_LENGTH = 1_800_000  # ~ image de 1.3 Mo encodée en base64, ou du texte largement suffisant
+MASCOT_STATES = ("talking", "clicked", "hover")
 
 DEFAULT_STATUTS = [
     "Professeur",
@@ -119,6 +123,9 @@ def ensure_storage():
     if not os.path.exists(CANVAS_LAYOUTS_FILE):
         with open(CANVAS_LAYOUTS_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f)
+    if not os.path.exists(MASCOT_CONFIG_FILE):
+        with open(MASCOT_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump({}, f)
 
 
 def load_data():
@@ -193,6 +200,19 @@ def save_canvas_layouts(layouts):
     write_json_atomic(CANVAS_LAYOUTS_FILE, layouts)
 
 
+def load_mascot_config():
+    ensure_storage()
+    try:
+        with open(MASCOT_CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def save_mascot_config(config):
+    write_json_atomic(MASCOT_CONFIG_FILE, config)
+
+
 def _autre_last(types):
     """Garde 'Autre' en dernière position de la liste, s'il y est présent."""
     others = [t for t in types if t.lower() != "autre"]
@@ -248,6 +268,27 @@ def admin_required(fn):
     return wrapper
 
 
+def main_admin_required(fn):
+    """Réservé au compte Admin lui-même, pas aux autres comptes qui ont juste le rôle admin
+    (ceux-là ont accès à l'onglet Admin, mais pas à la gestion des comptes)."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if session.get("username", "").lower() != "admin":
+            return jsonify({"error": "Réservé au compte Admin."}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def thetas_required(fn):
+    """Réservé au compte Thêtas Skoupa : seul lui peut personnaliser la mascotte."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if session.get("username", "").lower() != "thêtas skoupa":
+            return jsonify({"error": "Réservé au compte Thêtas Skoupa."}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
 def now_ms():
     return int(time.time() * 1000)
 
@@ -299,7 +340,7 @@ def me():
 
 @app.get("/api/users")
 @login_required
-@admin_required
+@main_admin_required
 def list_users():
     users = load_users()
     return jsonify([public_user(u) for u in users])
@@ -307,7 +348,7 @@ def list_users():
 
 @app.post("/api/users")
 @login_required
-@admin_required
+@main_admin_required
 def create_user():
     body = request.get_json(force=True) or {}
     username = (body.get("username") or "").strip()
@@ -334,7 +375,7 @@ def create_user():
 
 @app.put("/api/users/<username>")
 @login_required
-@admin_required
+@main_admin_required
 def update_user(username):
     body = request.get_json(force=True) or {}
     users = load_users()
@@ -364,7 +405,7 @@ def update_user(username):
 
 @app.delete("/api/users/<username>")
 @login_required
-@admin_required
+@main_admin_required
 def delete_user(username):
     users = load_users()
     user = find_user(users, username)
@@ -783,6 +824,48 @@ def delete_testimony(char_id):
     character["updatedAt"] = now_ms()
     save_data(data)
     return jsonify(character)
+
+
+@app.get("/api/mascot-config")
+@login_required
+def get_mascot_config():
+    return jsonify(load_mascot_config())
+
+
+@app.put("/api/mascot-config")
+@login_required
+@thetas_required
+def update_mascot_config():
+    body = request.get_json(force=True) or {}
+    state = body.get("state")
+    value_type = body.get("type")
+    value = body.get("value") or ""
+
+    if state not in MASCOT_STATES:
+        return jsonify({"error": "État invalide."}), 400
+    if value_type not in ("image", "text"):
+        return jsonify({"error": "Type invalide."}), 400
+    if not value.strip():
+        return jsonify({"error": "Valeur requise."}), 400
+    if len(value) > MAX_MASCOT_VALUE_LENGTH:
+        return jsonify({"error": "Image trop lourde, réessaie avec une image plus légère."}), 400
+
+    config = load_mascot_config()
+    config[state] = {"type": value_type, "value": value}
+    save_mascot_config(config)
+    return jsonify(config)
+
+
+@app.delete("/api/mascot-config/<state>")
+@login_required
+@thetas_required
+def reset_mascot_state(state):
+    if state not in MASCOT_STATES:
+        return jsonify({"error": "État invalide."}), 400
+    config = load_mascot_config()
+    config.pop(state, None)
+    save_mascot_config(config)
+    return jsonify(config)
 
 
 @app.get("/api/admin/export-data")
