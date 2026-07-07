@@ -177,7 +177,7 @@ input, select, textarea { font-family: var(--font-body); }
 .tab.active { color: var(--gold-bright); border-bottom-color: var(--gold); }
 
 .links-canvas-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 22px; position: relative; }
-.links-canvas-scroll { overflow: auto; max-height: 640px; scrollbar-width: none; -ms-overflow-style: none; display: flex; justify-content: center; align-items: flex-start; }
+.links-canvas-scroll { overflow: auto; height: 640px; scrollbar-width: none; -ms-overflow-style: none; display: flex; justify-content: center; align-items: center; }
 .links-canvas-scroll::-webkit-scrollbar { display: none; }
 .links-canvas { display: block; user-select: none; flex-shrink: 0; overflow: visible; }
 .zoom-controls { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; gap: 6px; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 5px 8px; }

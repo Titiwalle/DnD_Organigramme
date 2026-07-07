@@ -3,9 +3,11 @@ import json
 import uuid
 import time
 import tempfile
+import zipfile
+import io
 from functools import wraps
 
-from flask import Flask, jsonify, request, abort, session
+from flask import Flask, jsonify, request, abort, session, send_file
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -442,14 +444,31 @@ def create_affectation():
 @admin_required
 def update_affectation_color(value):
     body = request.get_json(force=True) or {}
-    color = (body.get("color") or "").strip()
-    if not color:
-        return jsonify({"error": "Couleur requise."}), 400
     affectations = load_affectations()
     entry = find_affectation(affectations, value)
     if not entry:
         abort(404)
-    entry["color"] = color
+
+    new_name = (body.get("name") or "").strip()
+    if new_name and new_name.lower() != entry["name"].lower():
+        if find_affectation(affectations, new_name):
+            return jsonify({"error": "Une affectation porte déjà ce nom."}), 400
+        old_name = entry["name"]
+        entry["name"] = new_name
+        # Les fiches qui utilisaient l'ancien nom suivent le renommage.
+        data = load_data()
+        changed = False
+        for c in data:
+            if (c.get("affectationType") or "").lower() == old_name.lower():
+                c["affectationType"] = new_name
+                changed = True
+        if changed:
+            save_data(data)
+
+    color = (body.get("color") or "").strip()
+    if color:
+        entry["color"] = color
+
     save_affectations(affectations)
     return jsonify(sorted(affectations, key=lambda a: a["name"].lower()))
 
@@ -764,6 +783,27 @@ def delete_testimony(char_id):
     character["updatedAt"] = now_ms()
     save_data(data)
     return jsonify(character)
+
+
+@app.get("/api/admin/export-data")
+@login_required
+@admin_required
+def export_data():
+    ensure_storage()
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filename in os.listdir(DATA_DIR):
+            filepath = os.path.join(DATA_DIR, filename)
+            if os.path.isfile(filepath):
+                zf.write(filepath, arcname=filename)
+    buffer.seek(0)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"registre-sauvegarde-{timestamp}.zip"
+    )
 
 
 if __name__ == "__main__":

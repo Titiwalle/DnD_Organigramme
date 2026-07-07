@@ -628,7 +628,7 @@ export default function LinksView({ characters, relationTypes, affectations, sho
                       <ClassIcon classe={n.classe} width={32} height={32} />
                     </g>
                   )}
-                  <text y="50" textAnchor="middle" className="link-node-name">
+                  <text y="50" textAnchor="middle" className="link-node-name" fill="var(--text)">
                     {n.name}
                   </text>
                 </g>

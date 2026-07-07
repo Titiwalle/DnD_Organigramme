@@ -56,10 +56,12 @@ function ManagedList({ title, hint, items, onAdd, onDelete, protectedItems = [] 
   );
 }
 
-function AffectationList({ items, onAdd, onColorChange, onDelete }) {
+function AffectationList({ items, onAdd, onRename, onColorChange, onDelete }) {
   const [value, setValue] = useState('');
   const [color, setColor] = useState('#c9a227');
   const [confirm, setConfirm] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [editValue, setEditValue] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -67,6 +69,20 @@ function AffectationList({ items, onAdd, onColorChange, onDelete }) {
     await onAdd(value.trim(), color);
     setValue('');
     setColor('#c9a227');
+  }
+
+  function startEditing(item) {
+    setEditing(item.name);
+    setEditValue(item.name);
+  }
+
+  async function saveRename(item) {
+    if (!editValue.trim() || editValue.trim() === item.name) {
+      setEditing(null);
+      return;
+    }
+    await onRename(item.name, editValue.trim());
+    setEditing(null);
   }
 
   return (
@@ -97,7 +113,7 @@ function AffectationList({ items, onAdd, onColorChange, onDelete }) {
         <div className="link-list">
           {items.map((item) => (
             <div key={item.name} className="link-list-row">
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                 <input
                   type="color"
                   value={item.color}
@@ -105,9 +121,29 @@ function AffectationList({ items, onAdd, onColorChange, onDelete }) {
                   className="color-swatch-input"
                   title="Changer la couleur"
                 />
-                {item.name}
+                {editing === item.name ? (
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    autoFocus
+                    style={{ flex: 1, maxWidth: 220 }}
+                  />
+                ) : (
+                  item.name
+                )}
               </span>
-              <button onClick={() => setConfirm(item.name)}>Supprimer</button>
+              <span style={{ display: 'flex', gap: 12 }}>
+                {editing === item.name ? (
+                  <>
+                    <button onClick={() => saveRename(item)}>Enregistrer</button>
+                    <button onClick={() => setEditing(null)}>Annuler</button>
+                  </>
+                ) : (
+                  <button onClick={() => startEditing(item)}>Modifier</button>
+                )}
+                <button onClick={() => setConfirm(item.name)}>Supprimer</button>
+              </span>
             </div>
           ))}
         </div>
@@ -139,7 +175,16 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
 
   async function handleChangeAffectationColor(value, color) {
     try {
-      const updated = await api.updateAffectationColor(value, color);
+      const updated = await api.updateAffectation(value, { color });
+      onAffectationsChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleRenameAffectation(value, name) {
+    try {
+      const updated = await api.updateAffectation(value, { name });
       onAffectationsChange(updated);
     } catch (err) {
       showToast(err.message);
@@ -193,9 +238,20 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
 
   return (
     <div>
+      <div className="link-form-card">
+        <h3 className="link-form-title">Sauvegarde</h3>
+        <p className="modal-sub" style={{ margin: '0 0 14px' }}>
+          Télécharge une copie de toutes les données du site (personnages, comptes, affectations,
+          statuts, liens…) au format .zip. À garder de côté au cas où.
+        </p>
+        <a href="/api/admin/export-data" className="btn btn-primary btn-sm">
+          Télécharger une sauvegarde
+        </a>
+      </div>
       <AffectationList
         items={affectations}
         onAdd={handleAddAffectation}
+        onRename={handleRenameAffectation}
         onColorChange={handleChangeAffectationColor}
         onDelete={handleDeleteAffectation}
       />

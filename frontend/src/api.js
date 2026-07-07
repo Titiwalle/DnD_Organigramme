@@ -42,8 +42,8 @@ export const api = {
 
   getAffectations: () => request('/affectations'),
   createAffectation: (value, color) => request('/affectations', { method: 'POST', body: JSON.stringify({ value, color }) }),
-  updateAffectationColor: (value, color) =>
-    request(`/affectations/${encodeURIComponent(value)}`, { method: 'PUT', body: JSON.stringify({ color }) }),
+  updateAffectation: (value, data) =>
+    request(`/affectations/${encodeURIComponent(value)}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAffectation: (value) => request(`/affectations/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
   getRelationTypes: () => request('/relation-types'),
