@@ -57,8 +57,8 @@ export const api = {
   resetCanvasLayout: () => request('/canvas-layout', { method: 'DELETE' }),
 
   getMascotConfig: () => request('/mascot-config'),
-  setMascotState: (state, type, value) =>
-    request('/mascot-config', { method: 'PUT', body: JSON.stringify({ state, type, value }) }),
+  setMascotState: (state, type, value, color, size) =>
+    request('/mascot-config', { method: 'PUT', body: JSON.stringify({ state, type, value, color, size }) }),
   resetMascotState: (state) => request(`/mascot-config/${state}`, { method: 'DELETE' }),
 
   createCharacter: (data) =>

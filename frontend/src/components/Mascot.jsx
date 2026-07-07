@@ -50,19 +50,33 @@ export default function Mascot() {
   else if (hovering) activeState = 'hover';
 
   const override = activeState ? config[activeState] : null;
+  const sizePercent = override?.size || 100;
 
-  let src = FACE;
-  if (activeState === 'clicked') src = override?.type === 'image' ? override.value : COMPLEX;
-  else if (activeState === 'talking') src = override?.type === 'image' ? override.value : SPEAK;
-  else if (activeState === 'hover' && override?.type === 'image') src = override.value;
-
-  const bubbleText = override?.type === 'text' ? override.value : null;
-
+  // La mascotte elle-même garde toujours ses propres images/animations, quoi qu'il arrive.
+  const src = mode === 'clicked' ? COMPLEX : mode === 'talking' && mouthOpen ? SPEAK : FACE;
   const stateClass = mode === 'talking' ? 'mascot-talking' : mode === 'clicked' ? 'mascot-clicked' : '';
 
   return (
     <>
-      {bubbleText && <div className="mascot-bubble">{bubbleText}</div>}
+      {override && (
+        <div className="mascot-overlay">
+          {override.type === 'image' ? (
+            <img
+              src={override.value}
+              alt=""
+              className="mascot-overlay-image"
+              style={{ width: `${(160 * sizePercent) / 100}px` }}
+            />
+          ) : (
+            <div
+              className="mascot-overlay-text"
+              style={{ color: override.color || 'var(--text)', fontSize: `${(14 * sizePercent) / 100}px` }}
+            >
+              {override.value}
+            </div>
+          )}
+        </div>
+      )}
       <img
         src={src}
         alt="Thêtas"
