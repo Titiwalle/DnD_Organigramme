@@ -229,7 +229,7 @@ export default function LinksView({ characters, relationTypes, affectations, rol
   function rawEndpoint(kind, id) {
     if (kind === 'character') {
       const p = pos(entityValue('character', id));
-      return p ? { x: p.x, y: p.y, name: p.name } : null;
+      return p ? { x: p.x, y: p.y, name: p.name, radius: 36 } : null;
     }
     const g = clusterByKey[id];
     return g ? { x: g.cx, y: g.cy, name: g.label, radius: g.radius } : null;
@@ -625,14 +625,14 @@ export default function LinksView({ characters, relationTypes, affectations, rol
               <g key={g.key} className="link-cluster" onPointerDown={(e) => handleClusterPointerDown(e, g)}>
                 <rect
                   x={g.cx - (g.label.length * 3.6 + 8)}
-                  y={g.cy - g.radius - 10 - 13}
+                  y={g.cy - g.radius - 19}
                   width={g.label.length * 7.2 + 16}
                   height="18"
                   fill="var(--bg)"
                   stroke="var(--border)"
                   rx="3"
                 />
-                <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" className="cluster-label" fill={clusterColorFor(g, i)}>
+                <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" dominantBaseline="central" className="cluster-label" fill={clusterColorFor(g, i)}>
                   {g.label}
                 </text>
               </g>
@@ -672,7 +672,7 @@ export default function LinksView({ characters, relationTypes, affectations, rol
                     stroke="var(--border)"
                     rx="3"
                   />
-                  <text y="50" textAnchor="middle" className="link-node-name" fill="var(--text)">
+                  <text y="50" textAnchor="middle" dominantBaseline="central" className="link-node-name" fill="var(--text)">
                     {n.name}
                   </text>
                 </g>
