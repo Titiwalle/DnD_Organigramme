@@ -102,7 +102,7 @@ export default function AccountManager({ currentUsername, onClose, onToast }) {
                   <div>
                     <span className="testimony-author">{u.username}</span>{' '}
                     <span className={`badge ${u.role === 'admin' ? 'badge-principal' : 'badge-secondaire'}`}>
-                      {u.role === 'admin' ? 'Admin' : 'Membre'}
+                      {u.role === 'admin' ? 'Admin' : u.role === 'lecteur' ? 'Lecteur' : 'Membre'}
                     </span>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
                       Créé le {fmtDate(u.createdAt)}
@@ -124,6 +124,7 @@ export default function AccountManager({ currentUsername, onClose, onToast }) {
                         }}
                       >
                         <option value="member">Membre</option>
+                        <option value="lecteur">Lecteur</option>
                         <option value="admin">Admin</option>
                       </select>
                       <button className="btn btn-sm" onClick={() => { setEditingUsername(u.username); setEditPassword(''); }}>
@@ -190,6 +191,7 @@ export default function AccountManager({ currentUsername, onClose, onToast }) {
               <label>Rôle</label>
               <select value={newUser.role} onChange={(e) => setNewUser((u) => ({ ...u, role: e.target.value }))}>
                 <option value="member">Membre</option>
+                <option value="lecteur">Lecteur</option>
                 <option value="admin">Admin</option>
               </select>
             </div>

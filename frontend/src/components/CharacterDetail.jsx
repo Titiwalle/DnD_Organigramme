@@ -20,7 +20,8 @@ export default function CharacterDetail({
   onSaveTestimony,
   onDeleteTestimony,
   statutSuggestions,
-  affectationSuggestions
+  affectationSuggestions,
+  readOnly
 }) {
   const [editingGeneral, setEditingGeneral] = useState(false);
   const [editingTestimony, setEditingTestimony] = useState(false);
@@ -107,9 +108,11 @@ export default function CharacterDetail({
                   <div className="info-label">Fonction</div>
                   <div className="info-value">{character.affectationPlus || '—'}</div>
                 </div>
-                <button className="btn btn-sm" style={{ marginTop: 6, width: '100%' }} onClick={() => setEditingGeneral(true)}>
-                  Modifier la fiche
-                </button>
+                {!readOnly && (
+                  <button className="btn btn-sm" style={{ marginTop: 6, width: '100%' }} onClick={() => setEditingGeneral(true)}>
+                    Modifier la fiche
+                  </button>
+                )}
               </div>
 
               <div className="col-right">
@@ -140,7 +143,7 @@ export default function CharacterDetail({
                   </div>
                 ))}
 
-                {editingTestimony ? (
+                {readOnly ? null : editingTestimony ? (
                   <div className="testimony mine testimony-form">
                     <div className="testimony-author">{pseudo} (toi)</div>
                     <textarea
@@ -161,16 +164,18 @@ export default function CharacterDetail({
                       {mine.author} (toi) · {fmtDate(mine.updatedAt)}
                     </div>
                     <div className="testimony-text">{mine.text}</div>
-                    <div className="testimony-actions">
-                      <button onClick={startEditTestimony}>Modifier</button>
-                      <button onClick={() => onDeleteTestimony(character.id)}>Supprimer</button>
-                    </div>
+                    {!readOnly && (
+                      <div className="testimony-actions">
+                        <button onClick={startEditTestimony}>Modifier</button>
+                        <button onClick={() => onDeleteTestimony(character.id)}>Supprimer</button>
+                      </div>
+                    )}
                   </div>
-                ) : (
+                ) : !readOnly ? (
                   <button className="btn btn-sm" onClick={startEditTestimony}>
                     + Ajouter mon témoignage
                   </button>
-                )}
+                ) : null}
               </div>
             </>
           )}
@@ -180,9 +185,11 @@ export default function CharacterDetail({
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-dim)' }}>
             Ajoutée par {character.createdBy || '?'} le {fmtDate(character.createdAt)}
           </span>
-          <button className="btn btn-danger btn-sm" onClick={() => onDelete(character.id)}>
-            Supprimer cette fiche
-          </button>
+          {!readOnly && (
+            <button className="btn btn-danger btn-sm" onClick={() => onDelete(character.id)}>
+              Supprimer cette fiche
+            </button>
+          )}
         </div>
       </div>
     </div>

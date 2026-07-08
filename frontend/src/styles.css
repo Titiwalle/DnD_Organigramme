@@ -187,6 +187,7 @@ input, select, textarea { font-family: var(--font-body); }
 .zoom-controls span { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); min-width: 32px; text-align: center; }
 .link-edge { cursor: pointer; }
 .link-edge:hover line { opacity: 1; }
+.link-edge-readonly { cursor: default; }
 .link-node { cursor: grab; touch-action: none; }
 .link-node:active { cursor: grabbing; }
 .link-cluster { cursor: grab; touch-action: none; }

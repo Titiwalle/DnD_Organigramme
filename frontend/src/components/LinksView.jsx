@@ -31,7 +31,7 @@ const CSS_VARS_FOR_EXPORT = [
   '--burgundy', '--burgundy-bright', '--teal', '--teal-bright', '--text', '--text-muted', '--text-dim'
 ];
 
-export default function LinksView({ characters, relationTypes, affectations, showToast }) {
+export default function LinksView({ characters, relationTypes, affectations, readOnly, showToast }) {
   const svgRef = useRef(null);
   const wrapRef = useRef(null);
   const scrollRef = useRef(null);
@@ -574,6 +574,15 @@ export default function LinksView({ characters, relationTypes, affectations, sho
             {liveClusters.map((g, i) => (
               <g key={g.key} className="link-cluster" onPointerDown={(e) => handleClusterPointerDown(e, g)}>
                 <circle cx={g.cx} cy={g.cy} r={g.radius} fill={clusterColorFor(g, i)} fillOpacity="0.1" stroke={clusterColorFor(g, i)} strokeOpacity="0.5" strokeWidth="1.2" />
+                <rect
+                  x={g.cx - (g.label.length * 3.6 + 8)}
+                  y={g.cy - g.radius - 10 - 13}
+                  width={g.label.length * 7.2 + 16}
+                  height="18"
+                  fill="var(--bg)"
+                  stroke="var(--border)"
+                  rx="3"
+                />
                 <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" className="cluster-label" fill={clusterColorFor(g, i)}>
                   {g.label}
                 </text>
@@ -590,7 +599,11 @@ export default function LinksView({ characters, relationTypes, affectations, sho
               const my = (a.y + b.y) / 2;
               const label = relationLabel(r);
               return (
-                <g key={r.id} className="link-edge" onClick={() => setConfirm({ id: r.id, label: `${a.name} — ${label} → ${b.name}` })}>
+                <g
+                  key={r.id}
+                  className={`link-edge ${readOnly ? 'link-edge-readonly' : ''}`}
+                  onClick={readOnly ? undefined : () => setConfirm({ id: r.id, label: `${a.name} — ${label} → ${b.name}` })}
+                >
                   <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colorFor(r.type)} strokeWidth="1.6" markerEnd="url(#arrow)" opacity="0.85" />
                   <rect x={mx - label.length * 3.2 - 5} y={my - 9} width={label.length * 6.4 + 10} height="16" fill="var(--bg)" stroke="var(--border)" rx="3" />
                   <text x={mx} y={my + 3.5} textAnchor="middle" className="link-label" fill={colorFor(r.type)}>
@@ -625,6 +638,15 @@ export default function LinksView({ characters, relationTypes, affectations, sho
                       <ClassIcon classe={n.classe} width={32} height={32} />
                     </g>
                   )}
+                  <rect
+                    x={-(n.name.length * 3.6 + 8)}
+                    y="41"
+                    width={n.name.length * 7.2 + 16}
+                    height="18"
+                    fill="var(--bg)"
+                    stroke="var(--border)"
+                    rx="3"
+                  />
                   <text y="50" textAnchor="middle" className="link-node-name" fill="var(--text)">
                     {n.name}
                   </text>
@@ -635,50 +657,52 @@ export default function LinksView({ characters, relationTypes, affectations, sho
         </div>
       </div>
 
-      <div className="link-form-card">
-        <h3 className="link-form-title">Créer un lien</h3>
-        <form onSubmit={handleCreate} className="link-form">
-          <input
-            type="text"
-            list="link-entity-list"
-            placeholder="Personnage ou groupe…"
-            value={fromText}
-            onChange={(e) => handleFromTextChange(e.target.value)}
-          />
-          <span className="link-form-word">est</span>
-          <select value={type} onChange={(e) => setType(e.target.value)}>
-            {relationTypes.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          {type === 'Autre' && (
-            <input type="text" placeholder="précise…" value={typeCustom} onChange={(e) => setTypeCustom(e.target.value)} />
+      {!readOnly && (
+        <div className="link-form-card">
+          <h3 className="link-form-title">Créer un lien</h3>
+          <form onSubmit={handleCreate} className="link-form">
+            <input
+              type="text"
+              list="link-entity-list"
+              placeholder="Personnage ou groupe…"
+              value={fromText}
+              onChange={(e) => handleFromTextChange(e.target.value)}
+            />
+            <span className="link-form-word">est</span>
+            <select value={type} onChange={(e) => setType(e.target.value)}>
+              {relationTypes.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            {type === 'Autre' && (
+              <input type="text" placeholder="précise…" value={typeCustom} onChange={(e) => setTypeCustom(e.target.value)} />
+            )}
+            <span className="link-form-word">de</span>
+            <input
+              type="text"
+              list="link-entity-list"
+              placeholder="Personnage ou groupe…"
+              value={toText}
+              onChange={(e) => handleToTextChange(e.target.value)}
+            />
+            <datalist id="link-entity-list">
+              {entityChoices.map((e) => (
+                <option key={e.value} value={e.label} />
+              ))}
+            </datalist>
+            <button type="submit" className="btn btn-primary btn-sm">
+              Ajouter
+            </button>
+          </form>
+          {groups.length <= 1 && (
+            <p style={{ color: 'var(--text-dim)', fontSize: 12.5, marginTop: 10 }}>
+              Il faut au moins deux affectations différentes parmi tes personnages pour pouvoir lier des groupes entre eux.
+            </p>
           )}
-          <span className="link-form-word">de</span>
-          <input
-            type="text"
-            list="link-entity-list"
-            placeholder="Personnage ou groupe…"
-            value={toText}
-            onChange={(e) => handleToTextChange(e.target.value)}
-          />
-          <datalist id="link-entity-list">
-            {entityChoices.map((e) => (
-              <option key={e.value} value={e.label} />
-            ))}
-          </datalist>
-          <button type="submit" className="btn btn-primary btn-sm">
-            Ajouter
-          </button>
-        </form>
-        {groups.length <= 1 && (
-          <p style={{ color: 'var(--text-dim)', fontSize: 12.5, marginTop: 10 }}>
-            Il faut au moins deux affectations différentes parmi tes personnages pour pouvoir lier des groupes entre eux.
-          </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {relations.length > 0 && (
         <div className="link-list">
@@ -691,9 +715,11 @@ export default function LinksView({ characters, relationTypes, affectations, sho
                 <span>
                   <b>{a ? a.name : '?'}</b> — {label} → <b>{b ? b.name : '?'}</b>
                 </span>
-                <button onClick={() => setConfirm({ id: r.id, label: `${a ? a.name : '?'} — ${label} → ${b ? b.name : '?'}` })}>
-                  Supprimer
-                </button>
+                {!readOnly && (
+                  <button onClick={() => setConfirm({ id: r.id, label: `${a ? a.name : '?'} — ${label} → ${b ? b.name : '?'}` })}>
+                    Supprimer
+                  </button>
+                )}
               </div>
             );
           })}

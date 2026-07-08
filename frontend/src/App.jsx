@@ -181,7 +181,7 @@ export default function App() {
         </div>
         <div className="whoami">
           Connectée en tant que <b>{user.username}</b>
-          {user.role === 'admin' ? ' · admin' : ''}
+          {user.role === 'admin' ? ' · admin' : user.role === 'lecteur' ? ' · lecture seule' : ''}
           {user.username.toLowerCase() === 'admin' && <button onClick={() => setShowAccountManager(true)}>gérer les comptes</button>}
           <button onClick={handleLogout}>se déconnecter</button>
         </div>
@@ -234,9 +234,11 @@ export default function App() {
           <option value="testimonies">Nombre de témoignages</option>
         </select>
         <span className="spacer"></span>
-        <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>
-          + Nouveau compagnon
-        </button>
+        {user.role !== 'lecteur' && (
+          <button className="btn btn-primary" onClick={() => setShowNewModal(true)}>
+            + Nouveau compagnon
+          </button>
+        )}
       </div>
 
       {filtered.length > 0 ? (
@@ -248,10 +250,16 @@ export default function App() {
       ) : characters.length === 0 ? (
         <div className="empty-state">
           <h3>Le registre est vierge</h3>
-          <p>Inscris le premier compagnon pour commencer la chronique.</p>
-          <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => setShowNewModal(true)}>
-            + Nouveau compagnon
-          </button>
+          {user.role === 'lecteur' ? (
+            <p>Aucun compagnon pour l'instant.</p>
+          ) : (
+            <>
+              <p>Inscris le premier compagnon pour commencer la chronique.</p>
+              <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => setShowNewModal(true)}>
+                + Nouveau compagnon
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="empty-state">
@@ -261,7 +269,15 @@ export default function App() {
         </>
       )}
 
-      {view === 'liens' && <LinksView characters={characters} relationTypes={relationTypes} affectations={affectations} showToast={showToast} />}
+      {view === 'liens' && (
+        <LinksView
+          characters={characters}
+          relationTypes={relationTypes}
+          affectations={affectations}
+          readOnly={user.role === 'lecteur'}
+          showToast={showToast}
+        />
+      )}
 
       {view === 'admin' && user.role === 'admin' && (
         <AdminTools
@@ -307,6 +323,7 @@ export default function App() {
           pseudo={user.username}
           statutSuggestions={statuts}
           affectationSuggestions={affectations.map((a) => a.name)}
+          readOnly={user.role === 'lecteur'}
           onClose={() => setDetailId(null)}
           onUpdate={handleUpdateGeneral}
           onDelete={(id) =>

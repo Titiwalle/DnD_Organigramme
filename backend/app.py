@@ -226,6 +226,18 @@ def find_relation_type(types, name):
     return next((t for t in types if t["name"].lower() == name.lower()), None)
 
 
+def remember_relation_type(value):
+    """Ajoute un type de lien personnalisé (saisi via 'Autre') à la liste connue, s'il n'y
+    est pas déjà — pour qu'il devienne un vrai type sélectionnable la prochaine fois."""
+    value = (value or "").strip()
+    if not value:
+        return
+    types = load_relation_types()
+    if not find_relation_type(types, value):
+        types.append({"name": value, "color": DEFAULT_AFFECTATION_COLOR})
+        save_relation_types(types)
+
+
 def load_users():
     ensure_storage()
     with open(USERS_FILE, "r", encoding="utf-8") as f:
@@ -259,6 +271,20 @@ def login_required(fn):
     def wrapper(*args, **kwargs):
         if "username" not in session:
             return jsonify({"error": "Connexion requise."}), 401
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def write_access_required(fn):
+    """Bloque l'écriture pour les comptes en lecture seule (rôle 'lecteur'). Le canvas Liens
+    (positions, zoom, cadrage) n'utilise pas ce décorateur : chacun peut toujours réarranger
+    sa propre vue, lecture seule ou non."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        users = load_users()
+        current = find_user(users, session.get("username", ""))
+        if current and current["role"] == "lecteur":
+            return jsonify({"error": "Ton compte est en lecture seule."}), 403
         return fn(*args, **kwargs)
     return wrapper
 
@@ -359,7 +385,7 @@ def create_user():
     body = request.get_json(force=True) or {}
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
-    role = "admin" if body.get("role") == "admin" else "member"
+    role = body.get("role") if body.get("role") in ("admin", "member", "lecteur") else "member"
 
     if not username or len(password) < 4:
         return jsonify({"error": "Pseudo requis, mot de passe de 4 caractères minimum."}), 400
@@ -390,8 +416,8 @@ def update_user(username):
         abort(404)
 
     new_role = body.get("role")
-    if new_role in ("admin", "member") and new_role != user["role"]:
-        if user["role"] == "admin" and new_role == "member":
+    if new_role in ("admin", "member", "lecteur") and new_role != user["role"]:
+        if user["role"] == "admin" and new_role != "admin":
             other_admins = [u for u in users if u["role"] == "admin" and u["username"].lower() != user["username"].lower()]
             if not other_admins:
                 return jsonify({"error": "Il doit rester au moins un compte admin."}), 400
@@ -640,6 +666,7 @@ def list_characters():
 
 @app.post("/api/characters")
 @login_required
+@write_access_required
 def create_character():
     body = request.get_json(force=True) or {}
     name = (body.get("name") or "").strip()
@@ -690,6 +717,7 @@ def get_character(char_id):
 
 @app.put("/api/characters/<char_id>")
 @login_required
+@write_access_required
 def update_character(char_id):
     body = request.get_json(force=True) or {}
     name = (body.get("name") or "").strip()
@@ -736,6 +764,7 @@ def list_relations():
 
 @app.post("/api/relations")
 @login_required
+@write_access_required
 def create_relation():
     body = request.get_json(force=True) or {}
     from_kind = body.get("fromKind") or "character"
@@ -780,11 +809,14 @@ def create_relation():
     relations = load_relations()
     relations.append(relation)
     save_relations(relations)
+    if rel_type == "Autre":
+        remember_relation_type(type_custom)
     return jsonify(relation), 201
 
 
 @app.delete("/api/relations/<relation_id>")
 @login_required
+@write_access_required
 def delete_relation(relation_id):
     relations = load_relations()
     if not any(r["id"] == relation_id for r in relations):
@@ -796,6 +828,7 @@ def delete_relation(relation_id):
 
 @app.delete("/api/characters/<char_id>")
 @login_required
+@write_access_required
 def delete_character(char_id):
     data = load_data()
     character = find_character(data, char_id)
@@ -817,6 +850,7 @@ def delete_character(char_id):
 
 @app.put("/api/characters/<char_id>/testimony")
 @login_required
+@write_access_required
 def upsert_testimony(char_id):
     body = request.get_json(force=True) or {}
     author = session["username"]
@@ -845,6 +879,7 @@ def upsert_testimony(char_id):
 
 @app.delete("/api/characters/<char_id>/testimony")
 @login_required
+@write_access_required
 def delete_testimony(char_id):
     author = session["username"]
 
