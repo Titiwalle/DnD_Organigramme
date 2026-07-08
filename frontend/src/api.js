@@ -46,6 +46,12 @@ export const api = {
     request(`/affectations/${encodeURIComponent(value)}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAffectation: (value) => request(`/affectations/${encodeURIComponent(value)}`, { method: 'DELETE' }),
 
+  getRoles: () => request('/roles'),
+  createRole: (value, color) => request('/roles', { method: 'POST', body: JSON.stringify({ value, color }) }),
+  updateRole: (value, data) =>
+    request(`/roles/${encodeURIComponent(value)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRole: (value) => request(`/roles/${encodeURIComponent(value)}`, { method: 'DELETE' }),
+
   getRelationTypes: () => request('/relation-types'),
   createRelationType: (value, color) => request('/relation-types', { method: 'POST', body: JSON.stringify({ value, color }) }),
   updateRelationType: (value, data) =>

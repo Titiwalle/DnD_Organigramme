@@ -19,6 +19,7 @@ export default function App() {
   const [characters, setCharacters] = useState([]);
   const [statuts, setStatuts] = useState([]);
   const [affectations, setAffectations] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [relationTypes, setRelationTypes] = useState([]);
   const [mascotConfig, setMascotConfig] = useState({});
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,7 @@ export default function App() {
       api.getCharacters().then(setCharacters).catch(() => showToast('Impossible de charger le registre.')),
       api.getStatuts().then(setStatuts).catch(() => {}),
       api.getAffectations().then(setAffectations).catch(() => {}),
+      api.getRoles().then(setRoles).catch(() => {}),
       api.getRelationTypes().then(setRelationTypes).catch(() => {}),
       api.getMascotConfig().then(setMascotConfig).catch(() => {})
     ]).finally(() => setLoading(false));
@@ -90,6 +92,7 @@ export default function App() {
     setCharacters([]);
     setStatuts([]);
     setAffectations([]);
+    setRoles([]);
     setRelationTypes([]);
     setMascotConfig({});
     setShowAccountManager(false);
@@ -217,8 +220,11 @@ export default function App() {
         />
         <select value={filters.role} onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value }))}>
           <option value="all">Tous les rôles</option>
-          <option value="Principal">Principal</option>
-          <option value="Secondaire">Secondaire</option>
+          {roles.map((r) => (
+            <option key={r.name} value={r.name}>
+              {r.name}
+            </option>
+          ))}
         </select>
         <select value={filters.affectation} onChange={(e) => setFilters((f) => ({ ...f, affectation: e.target.value }))}>
           <option value="all">Toutes affectations</option>
@@ -244,7 +250,7 @@ export default function App() {
       {filtered.length > 0 ? (
         <div className="grid">
           {sorted.map((c) => (
-            <CharacterCard key={c.id} character={c} onOpen={setDetailId} />
+            <CharacterCard key={c.id} character={c} roles={roles} onOpen={setDetailId} />
           ))}
         </div>
       ) : characters.length === 0 ? (
@@ -274,6 +280,7 @@ export default function App() {
           characters={characters}
           relationTypes={relationTypes}
           affectations={affectations}
+          roles={roles}
           readOnly={user.role === 'lecteur'}
           showToast={showToast}
         />
@@ -283,9 +290,11 @@ export default function App() {
         <AdminTools
           statuts={statuts}
           affectations={affectations}
+          roles={roles}
           relationTypes={relationTypes}
           onStatutsChange={setStatuts}
           onAffectationsChange={setAffectations}
+          onRolesChange={setRoles}
           onRelationTypesChange={setRelationTypes}
           showToast={showToast}
         />
@@ -304,6 +313,7 @@ export default function App() {
               submitLabel="Ajouter au registre"
               statutSuggestions={statuts}
               affectationSuggestions={affectations.map((a) => a.name)}
+              roleSuggestions={roles.map((r) => r.name)}
               onSubmit={handleCreate}
               onCancel={() => setShowNewModal(false)}
             />
@@ -323,6 +333,8 @@ export default function App() {
           pseudo={user.username}
           statutSuggestions={statuts}
           affectationSuggestions={affectations.map((a) => a.name)}
+          roleSuggestions={roles.map((r) => r.name)}
+          roles={roles}
           readOnly={user.role === 'lecteur'}
           onClose={() => setDetailId(null)}
           onUpdate={handleUpdateGeneral}

@@ -31,7 +31,7 @@ const CSS_VARS_FOR_EXPORT = [
   '--burgundy', '--burgundy-bright', '--teal', '--teal-bright', '--text', '--text-muted', '--text-dim'
 ];
 
-export default function LinksView({ characters, relationTypes, affectations, readOnly, showToast }) {
+export default function LinksView({ characters, relationTypes, affectations, roles, readOnly, showToast }) {
   const svgRef = useRef(null);
   const wrapRef = useRef(null);
   const scrollRef = useRef(null);
@@ -186,6 +186,16 @@ export default function LinksView({ characters, relationTypes, affectations, rea
   function colorFor(typeName) {
     const found = relationTypes.find((t) => t.name.toLowerCase() === (typeName || '').toLowerCase());
     return found ? found.color : FALLBACK_TYPE_COLOR;
+  }
+
+  function arrowFor(typeName) {
+    const found = relationTypes.find((t) => t.name.toLowerCase() === (typeName || '').toLowerCase());
+    return found ? found.showArrow !== false : true;
+  }
+
+  function roleColorFor(roleName) {
+    const found = (roles || []).find((r) => r.name.toLowerCase() === (roleName || '').toLowerCase());
+    return found ? found.color : 'var(--text-dim)';
   }
 
   const liveClusters = layout.clusters.map((g) => {
@@ -572,21 +582,19 @@ export default function LinksView({ characters, relationTypes, affectations, rea
             />
 
             {liveClusters.map((g, i) => (
-              <g key={g.key} className="link-cluster" onPointerDown={(e) => handleClusterPointerDown(e, g)}>
-                <circle cx={g.cx} cy={g.cy} r={g.radius} fill={clusterColorFor(g, i)} fillOpacity="0.1" stroke={clusterColorFor(g, i)} strokeOpacity="0.5" strokeWidth="1.2" />
-                <rect
-                  x={g.cx - (g.label.length * 3.6 + 8)}
-                  y={g.cy - g.radius - 10 - 13}
-                  width={g.label.length * 7.2 + 16}
-                  height="18"
-                  fill="var(--bg)"
-                  stroke="var(--border)"
-                  rx="3"
-                />
-                <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" className="cluster-label" fill={clusterColorFor(g, i)}>
-                  {g.label}
-                </text>
-              </g>
+              <circle
+                key={g.key}
+                className="link-cluster"
+                onPointerDown={(e) => handleClusterPointerDown(e, g)}
+                cx={g.cx}
+                cy={g.cy}
+                r={g.radius}
+                fill={clusterColorFor(g, i)}
+                fillOpacity="0.1"
+                stroke={clusterColorFor(g, i)}
+                strokeOpacity="0.5"
+                strokeWidth="1.2"
+              />
             ))}
 
             {relations.map((r) => {
@@ -604,7 +612,7 @@ export default function LinksView({ characters, relationTypes, affectations, rea
                   className={`link-edge ${readOnly ? 'link-edge-readonly' : ''}`}
                   onClick={readOnly ? undefined : () => setConfirm({ id: r.id, label: `${a.name} — ${label} → ${b.name}` })}
                 >
-                  <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colorFor(r.type)} strokeWidth="1.6" markerEnd="url(#arrow)" opacity="0.85" />
+                  <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colorFor(r.type)} strokeWidth="1.6" markerEnd={arrowFor(r.type) ? 'url(#arrow)' : undefined} opacity="0.85" />
                   <rect x={mx - label.length * 3.2 - 5} y={my - 9} width={label.length * 6.4 + 10} height="16" fill="var(--bg)" stroke="var(--border)" rx="3" />
                   <text x={mx} y={my + 3.5} textAnchor="middle" className="link-label" fill={colorFor(r.type)}>
                     {label}
@@ -613,11 +621,28 @@ export default function LinksView({ characters, relationTypes, affectations, rea
               );
             })}
 
+            {liveClusters.map((g, i) => (
+              <g key={g.key} className="link-cluster" onPointerDown={(e) => handleClusterPointerDown(e, g)}>
+                <rect
+                  x={g.cx - (g.label.length * 3.6 + 8)}
+                  y={g.cy - g.radius - 10 - 13}
+                  width={g.label.length * 7.2 + 16}
+                  height="18"
+                  fill="var(--bg)"
+                  stroke="var(--border)"
+                  rx="3"
+                />
+                <text x={g.cx} y={g.cy - g.radius - 10} textAnchor="middle" className="cluster-label" fill={clusterColorFor(g, i)}>
+                  {g.label}
+                </text>
+              </g>
+            ))}
+
             {layout.nodes.map((base) => {
               const n = pos(base.nodeKey);
               return (
                 <g key={n.nodeKey} className="link-node" transform={`translate(${n.x}, ${n.y})`} onPointerDown={(e) => handlePointerDown(e, n.nodeKey)}>
-                  <circle r="34" fill="var(--surface)" stroke={n.role === 'Principal' ? 'var(--gold)' : 'var(--teal)'} strokeWidth="1.6" />
+                  <circle r="34" fill="var(--surface)" stroke={roleColorFor(n.role)} strokeWidth="1.6" />
                   {n.avatar ? (
                     <>
                       <clipPath id={`avatar-clip-${n.id}`}>
@@ -634,7 +659,7 @@ export default function LinksView({ characters, relationTypes, affectations, rea
                       />
                     </>
                   ) : (
-                    <g transform="translate(-16, -16)" style={{ color: n.role === 'Principal' ? 'var(--gold)' : 'var(--teal-bright)' }}>
+                    <g transform="translate(-16, -16)" style={{ color: roleColorFor(n.role) }}>
                       <ClassIcon classe={n.classe} width={32} height={32} />
                     </g>
                   )}

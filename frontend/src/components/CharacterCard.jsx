@@ -9,8 +9,14 @@ function fmtDate(ts) {
   return new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function CharacterCard({ character, onOpen }) {
+function roleColorFor(roles, roleName) {
+  const found = roles.find((r) => r.name.toLowerCase() === (roleName || '').toLowerCase());
+  return found ? found.color : 'var(--text-dim)';
+}
+
+export default function CharacterCard({ character, roles = [], onOpen }) {
   const count = character.temoignages ? character.temoignages.length : 0;
+  const roleColor = roleColorFor(roles, character.role);
 
   return (
     <div className="card" onClick={() => onOpen(character.id)}>
@@ -25,7 +31,7 @@ export default function CharacterCard({ character, onOpen }) {
       </div>
 
       <div>
-        <span className={`badge ${character.role === 'Principal' ? 'badge-principal' : 'badge-secondaire'}`}>
+        <span className="badge" style={{ borderColor: roleColor, color: roleColor }}>
           {character.role}
         </span>
       </div>

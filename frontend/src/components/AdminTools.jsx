@@ -56,8 +56,9 @@ function ManagedList({ title, hint, items, onAdd, onDelete, protectedItems = [] 
   );
 }
 
-// Liste avec couleur + renommage par élément — utilisée pour les affectations ET les types de liens.
-function ColoredList({ title, hint, addPlaceholder, items, onAdd, onRename, onColorChange, onDelete, protectedItems = [] }) {
+// Liste avec couleur + renommage par élément — utilisée pour les affectations, rôles et
+// types de liens. `onToggleArrow` est optionnel : s'il est fourni, une case "Flèche" apparaît.
+function ColoredList({ title, hint, addPlaceholder, items, onAdd, onRename, onColorChange, onDelete, onToggleArrow, protectedItems = [] }) {
   const [value, setValue] = useState('');
   const [color, setColor] = useState('#c9a227');
   const [confirm, setConfirm] = useState(null);
@@ -135,6 +136,16 @@ function ColoredList({ title, hint, addPlaceholder, items, onAdd, onRename, onCo
                   item.name
                 )}
               </span>
+              {onToggleArrow && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={item.showArrow !== false}
+                    onChange={(e) => onToggleArrow(item.name, e.target.checked)}
+                  />
+                  Flèche
+                </label>
+              )}
               <span style={{ display: 'flex', gap: 12 }}>
                 {editing === item.name ? (
                   <>
@@ -165,7 +176,7 @@ function ColoredList({ title, hint, addPlaceholder, items, onAdd, onRename, onCo
   );
 }
 
-export default function AdminTools({ statuts, affectations, relationTypes, onStatutsChange, onAffectationsChange, onRelationTypesChange, showToast }) {
+export default function AdminTools({ statuts, affectations, roles, relationTypes, onStatutsChange, onAffectationsChange, onRolesChange, onRelationTypesChange, showToast }) {
   async function handleAddAffectation(value, color) {
     try {
       const updated = await api.createAffectation(value, color);
@@ -197,6 +208,42 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
     try {
       const updated = await api.deleteAffectation(value);
       onAffectationsChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleAddRole(value, color) {
+    try {
+      const updated = await api.createRole(value, color);
+      onRolesChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleChangeRoleColor(value, color) {
+    try {
+      const updated = await api.updateRole(value, { color });
+      onRolesChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleRenameRole(value, name) {
+    try {
+      const updated = await api.updateRole(value, { name });
+      onRolesChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function handleDeleteRole(value) {
+    try {
+      const updated = await api.deleteRole(value);
+      onRolesChange(updated);
     } catch (err) {
       showToast(err.message);
     }
@@ -256,6 +303,15 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
     }
   }
 
+  async function handleToggleRelationTypeArrow(value, showArrow) {
+    try {
+      const updated = await api.updateRelationType(value, { showArrow });
+      onRelationTypesChange(updated);
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
   return (
     <div>
       <div className="link-form-card">
@@ -278,6 +334,16 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
         onColorChange={handleChangeAffectationColor}
         onDelete={handleDeleteAffectation}
       />
+      <ColoredList
+        title="Rôles"
+        hint="Principal, Secondaire, TAV… proposés dans le formulaire de fiche. Chacun a une couleur, utilisée pour le badge et le contour du personnage dans l'onglet Liens."
+        addPlaceholder="Nouveau rôle…"
+        items={roles}
+        onAdd={handleAddRole}
+        onRename={handleRenameRole}
+        onColorChange={handleChangeRoleColor}
+        onDelete={handleDeleteRole}
+      />
       <ManagedList
         title="Fonctions / statuts"
         hint="Proposées dans le champ « Fonction / statut » des fiches."
@@ -287,12 +353,13 @@ export default function AdminTools({ statuts, affectations, relationTypes, onSta
       />
       <ColoredList
         title="Types de liens"
-        hint="Proposés dans l'onglet Liens pour relier deux personnages ou affectations. « Autre » ne peut être ni renommé ni supprimé, mais sa couleur reste modifiable."
+        hint="Proposés dans l'onglet Liens pour relier deux personnages ou affectations. « Autre » ne peut être ni renommé ni supprimé, mais sa couleur et sa flèche restent modifiables. La case « Flèche » active ou non la pointe directionnelle sur le trait."
         addPlaceholder="Nouveau type de lien…"
         items={relationTypes}
         onAdd={handleAddRelationType}
         onRename={handleRenameRelationType}
         onColorChange={handleChangeRelationTypeColor}
+        onToggleArrow={handleToggleRelationTypeArrow}
         onDelete={handleDeleteRelationType}
         protectedItems={['Autre']}
       />

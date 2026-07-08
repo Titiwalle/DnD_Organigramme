@@ -18,6 +18,7 @@ STATUTS_FILE = os.path.join(DATA_DIR, "statuts.json")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 RELATIONS_FILE = os.path.join(DATA_DIR, "relations.json")
 AFFECTATIONS_FILE = os.path.join(DATA_DIR, "affectations.json")
+ROLES_FILE = os.path.join(DATA_DIR, "roles.json")
 RELATION_TYPES_FILE = os.path.join(DATA_DIR, "relation_types.json")
 CANVAS_LAYOUTS_FILE = os.path.join(DATA_DIR, "canvas_layouts.json")
 MASCOT_CONFIG_FILE = os.path.join(DATA_DIR, "mascot_config.json")
@@ -47,23 +48,29 @@ DEFAULT_AFFECTATIONS = [
     {"name": "Patapote", "color": "#8f7fe0"},
 ]
 
+DEFAULT_ROLES = [
+    {"name": "Principal", "color": "#c9a227"},
+    {"name": "Secondaire", "color": "#4a7566"},
+    {"name": "TAV", "color": "#c97ad1"},
+]
+
 MAX_AVATAR_LENGTH = 1_800_000  # ~ image de 1.3 Mo encodée en base64
 
 DEFAULT_RELATION_TYPES = [
-    {"name": "Parent", "color": "#e6c458"},
-    {"name": "Enfant", "color": "#e6c458"},
-    {"name": "Grand-parent", "color": "#e6c458"},
-    {"name": "Petit-enfant", "color": "#e6c458"},
-    {"name": "Frère/Sœur", "color": "#e6c458"},
-    {"name": "Oncle/Tante", "color": "#e6c458"},
-    {"name": "Neveu/Nièce", "color": "#e6c458"},
-    {"name": "Cousin/Cousine", "color": "#e6c458"},
-    {"name": "Allié", "color": "#62967f"},
-    {"name": "Rival", "color": "#b25656"},
-    {"name": "Ami", "color": "#62967f"},
-    {"name": "Mentor", "color": "#62967f"},
-    {"name": "Élève", "color": "#62967f"},
-    {"name": "Autre", "color": "#786c56"},
+    {"name": "Parent", "color": "#e6c458", "showArrow": True},
+    {"name": "Enfant", "color": "#e6c458", "showArrow": True},
+    {"name": "Grand-parent", "color": "#e6c458", "showArrow": True},
+    {"name": "Petit-enfant", "color": "#e6c458", "showArrow": True},
+    {"name": "Frère/Sœur", "color": "#e6c458", "showArrow": True},
+    {"name": "Oncle/Tante", "color": "#e6c458", "showArrow": True},
+    {"name": "Neveu/Nièce", "color": "#e6c458", "showArrow": True},
+    {"name": "Cousin/Cousine", "color": "#e6c458", "showArrow": True},
+    {"name": "Allié", "color": "#62967f", "showArrow": True},
+    {"name": "Rival", "color": "#b25656", "showArrow": True},
+    {"name": "Ami", "color": "#62967f", "showArrow": True},
+    {"name": "Mentor", "color": "#62967f", "showArrow": True},
+    {"name": "Élève", "color": "#62967f", "showArrow": True},
+    {"name": "Autre", "color": "#786c56", "showArrow": True},
 ]
 
 FRONTEND_DIST = os.path.join(BASE_DIR, "..", "frontend", "dist")
@@ -117,6 +124,9 @@ def ensure_storage():
     if not os.path.exists(AFFECTATIONS_FILE):
         with open(AFFECTATIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_AFFECTATIONS, f, ensure_ascii=False, indent=2)
+    if not os.path.exists(ROLES_FILE):
+        with open(ROLES_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_ROLES, f, ensure_ascii=False, indent=2)
     if not os.path.exists(RELATION_TYPES_FILE):
         with open(RELATION_TYPES_FILE, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_RELATION_TYPES, f, ensure_ascii=False, indent=2)
@@ -175,12 +185,35 @@ def find_affectation(affectations, name):
     return next((a for a in affectations if a["name"].lower() == name.lower()), None)
 
 
+def load_roles():
+    ensure_storage()
+    with open(ROLES_FILE, "r", encoding="utf-8") as f:
+        raw = json.load(f)
+    return [r if isinstance(r, dict) else {"name": r, "color": DEFAULT_AFFECTATION_COLOR} for r in raw]
+
+
+def save_roles(roles):
+    write_json_atomic(ROLES_FILE, roles)
+
+
+def find_role(roles, name):
+    return next((r for r in roles if r["name"].lower() == name.lower()), None)
+
+
 def load_relation_types():
     ensure_storage()
     with open(RELATION_TYPES_FILE, "r", encoding="utf-8") as f:
         raw = json.load(f)
-    # Compatibilité : d'anciennes installations stockent une simple liste de noms (chaînes).
-    return [t if isinstance(t, dict) else {"name": t, "color": DEFAULT_AFFECTATION_COLOR} for t in raw]
+    # Compatibilité : d'anciennes installations stockent une simple liste de noms (chaînes),
+    # ou des objets sans showArrow (ajouté plus tard).
+    result = []
+    for t in raw:
+        if not isinstance(t, dict):
+            result.append({"name": t, "color": DEFAULT_AFFECTATION_COLOR, "showArrow": True})
+        else:
+            t.setdefault("showArrow", True)
+            result.append(t)
+    return result
 
 
 def save_relation_types(types):
@@ -234,7 +267,7 @@ def remember_relation_type(value):
         return
     types = load_relation_types()
     if not find_relation_type(types, value):
-        types.append({"name": value, "color": DEFAULT_AFFECTATION_COLOR})
+        types.append({"name": value, "color": DEFAULT_AFFECTATION_COLOR, "showArrow": True})
         save_relation_types(types)
 
 
@@ -488,6 +521,74 @@ def delete_statut(value):
     return jsonify(sorted(statuts, key=lambda s: s.lower()))
 
 
+@app.get("/api/roles")
+@login_required
+def list_roles():
+    roles = load_roles()
+    return jsonify(sorted(roles, key=lambda r: r["name"].lower()))
+
+
+@app.post("/api/roles")
+@login_required
+@admin_required
+def create_role():
+    body = request.get_json(force=True) or {}
+    value = (body.get("value") or "").strip()
+    color = (body.get("color") or DEFAULT_AFFECTATION_COLOR).strip()
+    if not value:
+        return jsonify({"error": "Valeur requise."}), 400
+    roles = load_roles()
+    if find_role(roles, value):
+        return jsonify({"error": "Ce rôle existe déjà."}), 400
+    roles.append({"name": value, "color": color})
+    save_roles(roles)
+    return jsonify(sorted(roles, key=lambda r: r["name"].lower())), 201
+
+
+@app.put("/api/roles/<path:value>")
+@login_required
+@admin_required
+def update_role(value):
+    body = request.get_json(force=True) or {}
+    roles = load_roles()
+    entry = find_role(roles, value)
+    if not entry:
+        abort(404)
+
+    new_name = (body.get("name") or "").strip()
+    if new_name and new_name.lower() != entry["name"].lower():
+        if find_role(roles, new_name):
+            return jsonify({"error": "Un rôle porte déjà ce nom."}), 400
+        old_name = entry["name"]
+        entry["name"] = new_name
+        # Les fiches qui utilisaient l'ancien nom suivent le renommage.
+        data = load_data()
+        changed = False
+        for c in data:
+            if (c.get("role") or "").lower() == old_name.lower():
+                c["role"] = new_name
+                changed = True
+        if changed:
+            save_data(data)
+
+    color = (body.get("color") or "").strip()
+    if color:
+        entry["color"] = color
+
+    save_roles(roles)
+    return jsonify(sorted(roles, key=lambda r: r["name"].lower()))
+
+
+@app.delete("/api/roles/<path:value>")
+@login_required
+@admin_required
+def delete_role(value):
+    roles = load_roles()
+    roles = [r for r in roles if r["name"].lower() != value.lower()]
+    save_roles(roles)
+    return jsonify(sorted(roles, key=lambda r: r["name"].lower()))
+
+
 @app.get("/api/affectations")
 @login_required
 def list_affectations():
@@ -574,7 +675,7 @@ def create_relation_type():
     types = load_relation_types()
     if find_relation_type(types, value):
         return jsonify({"error": "Ce type de lien existe déjà."}), 400
-    types.append({"name": value, "color": color})
+    types.append({"name": value, "color": color, "showArrow": True})
     save_relation_types(types)
     return jsonify(load_relation_types()), 201
 
@@ -600,6 +701,9 @@ def update_relation_type(value):
     color = (body.get("color") or "").strip()
     if color:
         entry["color"] = color
+
+    if "showArrow" in body:
+        entry["showArrow"] = bool(body.get("showArrow"))
 
     save_relation_types(types)
     return jsonify(load_relation_types())

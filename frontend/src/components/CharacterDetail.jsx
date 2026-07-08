@@ -11,6 +11,11 @@ function fmtDate(ts) {
   return new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function roleColorFor(roles, roleName) {
+  const found = roles.find((r) => r.name.toLowerCase() === (roleName || '').toLowerCase());
+  return found ? found.color : 'var(--text-dim)';
+}
+
 export default function CharacterDetail({
   character,
   pseudo,
@@ -21,11 +26,14 @@ export default function CharacterDetail({
   onDeleteTestimony,
   statutSuggestions,
   affectationSuggestions,
+  roleSuggestions,
+  roles = [],
   readOnly
 }) {
   const [editingGeneral, setEditingGeneral] = useState(false);
   const [editingTestimony, setEditingTestimony] = useState(false);
   const [testimonyText, setTestimonyText] = useState('');
+  const roleColor = roleColorFor(roles, character.role);
 
   const temoignages = character.temoignages || [];
   const mine = temoignages.find((t) => t.author === pseudo);
@@ -57,7 +65,7 @@ export default function CharacterDetail({
             <div>
               <p className="detail-name">{character.name}</p>
               <div className="detail-tags">
-                <span className={`badge ${character.role === 'Principal' ? 'badge-principal' : 'badge-secondaire'}`}>
+                <span className="badge" style={{ borderColor: roleColor, color: roleColor }}>
                   {character.role}
                 </span>
               </div>
@@ -76,6 +84,7 @@ export default function CharacterDetail({
                 submitLabel="Enregistrer"
                 statutSuggestions={statutSuggestions}
                 affectationSuggestions={affectationSuggestions}
+                roleSuggestions={roleSuggestions}
                 onCancel={() => setEditingGeneral(false)}
                 onSubmit={(data) => {
                   onUpdate(character.id, data);
@@ -89,7 +98,7 @@ export default function CharacterDetail({
                 <div className="info-line">
                   <div className="info-label">Rôle</div>
                   <div className="info-value">
-                    <span className={`badge ${character.role === 'Principal' ? 'badge-principal' : 'badge-secondaire'}`}>
+                    <span className="badge" style={{ borderColor: roleColor, color: roleColor }}>
                       {character.role}
                     </span>
                   </div>

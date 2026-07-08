@@ -8,7 +8,8 @@ export default function CharacterForm({
   onCancel,
   submitLabel = 'Enregistrer',
   statutSuggestions = [],
-  affectationSuggestions = []
+  affectationSuggestions = [],
+  roleSuggestions = []
 }) {
   const [form, setForm] = useState({
     name: initialData.name || '',
@@ -70,8 +71,14 @@ export default function CharacterForm({
         <div className="field">
           <label>Rôle</label>
           <select value={form.role} onChange={(e) => update('role', e.target.value)}>
-            <option value="Principal">Principal</option>
-            <option value="Secondaire">Secondaire</option>
+            {(roleSuggestions.some((r) => r.toLowerCase() === form.role.toLowerCase())
+              ? roleSuggestions
+              : [form.role, ...roleSuggestions].filter(Boolean)
+            ).map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">
