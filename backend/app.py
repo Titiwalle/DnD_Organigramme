@@ -365,6 +365,28 @@ def find_character(data, char_id):
     return None
 
 
+def can_view_character(character, username):
+    """Une fiche 'Not Release' n'est visible que par sa créatrice et le compte 'Maitre'."""
+    if not character.get("notRelease"):
+        return True
+    username = (username or "").lower()
+    if (character.get("createdBy") or "").lower() == username:
+        return True
+    if username == "maitre":
+        return True
+    return False
+
+
+def relation_endpoint_visible(kind, char_id, username, data=None):
+    if kind != "character":
+        return True
+    data = data if data is not None else load_data()
+    character = find_character(data, char_id)
+    if not character:
+        return True  # personnage supprimé : rien à cacher, laisse la route gérer le 404
+    return can_view_character(character, username)
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
@@ -764,6 +786,7 @@ def reset_canvas_layout():
 @login_required
 def list_characters():
     data = load_data()
+    data = [c for c in data if can_view_character(c, session.get("username"))]
     data.sort(key=lambda c: c.get("updatedAt", 0), reverse=True)
     return jsonify(data)
 
@@ -797,6 +820,7 @@ def create_character():
         "descriptionAuteur": author,
         "descriptionUpdatedAt": ts,
         "temoignages": [],
+        "notRelease": bool(body.get("notRelease")),
         "createdAt": ts,
         "createdBy": author,
         "updatedAt": ts,
@@ -814,7 +838,7 @@ def create_character():
 def get_character(char_id):
     data = load_data()
     character = find_character(data, char_id)
-    if not character:
+    if not character or not can_view_character(character, session.get("username")):
         abort(404)
     return jsonify(character)
 
@@ -834,8 +858,15 @@ def update_character(char_id):
 
     data = load_data()
     character = find_character(data, char_id)
-    if not character:
+    if not character or not can_view_character(character, session.get("username")):
         abort(404)
+
+    if "notRelease" in body:
+        requested = bool(body.get("notRelease"))
+        if character.get("notRelease") and not requested:
+            character["notRelease"] = False  # rendre publique : autorisé, irréversible
+        elif requested and not character.get("notRelease"):
+            return jsonify({"error": "Une fiche publique ne peut pas redevenir Not Release."}), 400
 
     author = session["username"]
     ts = now_ms()
@@ -863,7 +894,15 @@ def update_character(char_id):
 @app.get("/api/relations")
 @login_required
 def list_relations():
-    return jsonify(load_relations())
+    data = load_data()
+    username = session.get("username")
+    relations = load_relations()
+    relations = [
+        r for r in relations
+        if relation_endpoint_visible(r.get("fromKind", "character"), r["fromId"], username, data)
+        and relation_endpoint_visible(r.get("toKind", "character"), r["toId"], username, data)
+    ]
+    return jsonify(relations)
 
 
 @app.post("/api/relations")
@@ -886,14 +925,16 @@ def create_relation():
         return jsonify({"error": "Le type de lien est obligatoire."}), 400
 
     if from_kind == "character":
-        if not find_character(load_data(), from_id):
+        char = find_character(load_data(), from_id)
+        if not char or not can_view_character(char, session.get("username")):
             return jsonify({"error": "Personnage introuvable."}), 404
     else:
         if not str(from_id).strip():
             return jsonify({"error": "Affectation introuvable."}), 404
 
     if to_kind == "character":
-        if not find_character(load_data(), to_id):
+        char = find_character(load_data(), to_id)
+        if not char or not can_view_character(char, session.get("username")):
             return jsonify({"error": "Personnage introuvable."}), 404
     else:
         if not str(to_id).strip():
@@ -923,7 +964,13 @@ def create_relation():
 @write_access_required
 def delete_relation(relation_id):
     relations = load_relations()
-    if not any(r["id"] == relation_id for r in relations):
+    relation = next((r for r in relations if r["id"] == relation_id), None)
+    if not relation:
+        abort(404)
+    data = load_data()
+    username = session.get("username")
+    if not relation_endpoint_visible(relation.get("fromKind", "character"), relation["fromId"], username, data) or \
+       not relation_endpoint_visible(relation.get("toKind", "character"), relation["toId"], username, data):
         abort(404)
     relations = [r for r in relations if r["id"] != relation_id]
     save_relations(relations)
@@ -936,7 +983,7 @@ def delete_relation(relation_id):
 def delete_character(char_id):
     data = load_data()
     character = find_character(data, char_id)
-    if not character:
+    if not character or not can_view_character(character, session.get("username")):
         abort(404)
     data = [c for c in data if c["id"] != char_id]
     save_data(data)
@@ -964,7 +1011,7 @@ def upsert_testimony(char_id):
 
     data = load_data()
     character = find_character(data, char_id)
-    if not character:
+    if not character or not can_view_character(character, session.get("username")):
         abort(404)
 
     ts = now_ms()
@@ -989,7 +1036,7 @@ def delete_testimony(char_id):
 
     data = load_data()
     character = find_character(data, char_id)
-    if not character:
+    if not character or not can_view_character(character, session.get("username")):
         abort(404)
 
     character["temoignages"] = [t for t in character.get("temoignages", []) if t["author"] != author]

@@ -30,10 +30,15 @@ export default function CharacterCard({ character, roles = [], onOpen }) {
         </div>
       </div>
 
-      <div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <span className="badge" style={{ borderColor: roleColor, color: roleColor }}>
           {character.role}
         </span>
+        {character.notRelease && (
+          <span className="badge" style={{ borderColor: 'var(--burgundy)', color: 'var(--burgundy-bright)' }}>
+            Not Release
+          </span>
+        )}
       </div>
 
       <div className="card-meta">

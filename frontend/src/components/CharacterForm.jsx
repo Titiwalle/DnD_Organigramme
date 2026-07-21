@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CLASSES, ClassIcon } from '../icons.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
+import ConfirmModal from './ConfirmModal.jsx';
 
 export default function CharacterForm({
   initialData = {},
@@ -11,6 +12,9 @@ export default function CharacterForm({
   affectationSuggestions = [],
   roleSuggestions = []
 }) {
+  const isEditingExisting = !!initialData.id;
+  const wasNotRelease = !!initialData.notRelease;
+
   const [form, setForm] = useState({
     name: initialData.name || '',
     role: initialData.role || 'Secondaire',
@@ -20,12 +24,23 @@ export default function CharacterForm({
     affectationType: initialData.affectationType || 'Ville',
     affectationNom: initialData.affectationNom || '',
     affectationPlus: initialData.affectationPlus || '',
-    descriptionGenerale: initialData.descriptionGenerale || ''
+    descriptionGenerale: initialData.descriptionGenerale || '',
+    notRelease: !!initialData.notRelease
   });
   const [rawImage, setRawImage] = useState(null);
+  const [confirmMakePublic, setConfirmMakePublic] = useState(false);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function handleNotReleaseChange(checked) {
+    if (isEditingExisting && wasNotRelease && !checked) {
+      // Décocher une fiche déjà Not Release la rend publique pour de bon : on confirme avant.
+      setConfirmMakePublic(true);
+    } else {
+      update('notRelease', checked);
+    }
   }
 
   function handleFileChange(e) {
@@ -150,6 +165,26 @@ export default function CharacterForm({
         />
       </div>
 
+      {(!isEditingExisting || wasNotRelease) && (
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.notRelease}
+              onChange={(e) => handleNotReleaseChange(e.target.checked)}
+            />
+            <span style={{ textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-body)', fontSize: 15 }}>
+              Not Release
+            </span>
+          </label>
+          <p style={{ color: 'var(--text-dim)', fontSize: 12.5, margin: '6px 0 0' }}>
+            {form.notRelease
+              ? 'Visible uniquement par toi et le compte "Maitre". Décocher pour la rendre publique — irréversible.'
+              : 'Visible par tout le monde dès l\u2019enregistrement.'}
+          </p>
+        </div>
+      )}
+
       <div className="modal-actions">
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Annuler
@@ -158,6 +193,17 @@ export default function CharacterForm({
           {submitLabel}
         </button>
       </div>
+
+      {confirmMakePublic && (
+        <ConfirmModal
+          message="Rendre cette fiche publique ? Tout le monde pourra la voir. Cette action est irréversible."
+          onConfirm={() => {
+            update('notRelease', false);
+            setConfirmMakePublic(false);
+          }}
+          onCancel={() => setConfirmMakePublic(false)}
+        />
+      )}
 
       {rawImage && (
         <AvatarCropper
